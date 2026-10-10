@@ -37,6 +37,17 @@ export function clearSessionCookie(reply: FastifyReply) {
   reply.clearCookie(COOKIE, { path: "/" });
 }
 
+export function hashPassword(password: string, salt: string): string {
+  return crypto.scryptSync(password, salt, 64).toString("hex");
+}
+
+export function verifyPassword(password: string, salt: string, hash: string): boolean {
+  const calculated = hashPassword(password, salt);
+  const a = Buffer.from(calculated, "hex");
+  const b = Buffer.from(hash, "hex");
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 /** onRequest hook: resolve the signed cookie to a user (or null). */
 export function loadUser(ctx: Ctx) {
   return async (req: FastifyRequest) => {

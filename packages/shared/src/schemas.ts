@@ -51,7 +51,23 @@ export const ArticleSchema = z
 
 // ───────────────────────── API request bodies ─────────────────────────
 
-export const LoginBody = z.object({ code: z.string().trim().min(3).max(32) });
+export const LoginBody = z.object({
+  code: z.string().trim().min(3).max(32),
+  password: z.string().min(1).max(128).optional(),
+});
+export const RegisterBody = z.object({
+  code: z
+    .string()
+    .trim()
+    .min(3, "ID must be at least 3 characters")
+    .max(32, "ID cannot exceed 32 characters")
+    .regex(/^[a-zA-Z0-9_-]+$/, "ID can only contain letters, numbers, hyphens, and underscores"),
+  password: z.string().min(6, "Password must be at least 6 characters").max(128),
+  label: z.string().trim().max(64).optional(),
+  role: z.enum(["student", "teacher"]).default("student"),
+});
+export type LoginInput = z.infer<typeof LoginBody>;
+export type RegisterInput = z.infer<typeof RegisterBody>;
 export const ConsentBody = z.object({ accept: z.boolean() });
 export const QueueJoinBody = z.object({ articleId: z.string().max(16) });
 export const SessionCreateBody = z.object({ articleId: z.string().max(16), admissionToken: z.string().max(512).optional() });

@@ -23,9 +23,9 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       <div className="frame grid gap-16 pt-14 md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] md:gap-24 md:pt-24">
         <section className="animate-rise">
           <p className="eyebrow">Sign in</p>
-          <h1 className="mt-4 font-serif text-2xl md:text-3xl">Your roster code is your key.</h1>
+          <h1 className="mt-4 font-serif text-2xl md:text-3xl">Sign in or create your own ID.</h1>
           <p className="mt-4 max-w-md text-md text-ink-2">
-            Use the code your instructor gave you. Nothing that identifies you is ever written on-chain — only salted hashes.
+            Create your own custom ID and password, or sign in using a demo roster code. Nothing identifying is ever written on-chain — only salted hashes.
           </p>
           <div className="mt-10 max-w-sm">
             <LoginForm next={next && next.startsWith("/") ? next : undefined} />

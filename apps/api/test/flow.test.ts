@@ -50,6 +50,48 @@ describe("auth and consent", () => {
     expect(r.body).not.toContain("A log is only useful");
     expect(r.json().articles).toHaveLength(3);
   });
+  it("allows registering with custom ID and password and logging in", async () => {
+    const reg = await h.app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      payload: { code: "my_custom_user", password: "secretPassword123", label: "Custom Student" },
+    });
+    expect(reg.statusCode).toBe(200);
+    expect(reg.json().user.code).toBe("my_custom_user");
+    expect(reg.headers["set-cookie"]).toBeDefined();
+
+    const dup = await h.app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      payload: { code: "my_custom_user", password: "anotherPassword" },
+    });
+    expect(dup.statusCode).toBe(409);
+    expect(dup.json().code).toBe("ID_ALREADY_EXISTS");
+
+    const wrong = await h.app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      payload: { code: "my_custom_user", password: "wrongPassword" },
+    });
+    expect(wrong.statusCode).toBe(401);
+    expect(wrong.json().code).toBe("INVALID_PASSWORD");
+
+    const missing = await h.app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      payload: { code: "my_custom_user" },
+    });
+    expect(missing.statusCode).toBe(400);
+    expect(missing.json().code).toBe("PASSWORD_REQUIRED");
+
+    const ok = await h.app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      payload: { code: "my_custom_user", password: "secretPassword123" },
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json().user.code).toBe("my_custom_user");
+  });
 });
 
 describe("reading, hide and FairClock (F1)", () => {
