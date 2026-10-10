@@ -1,0 +1,14 @@
+**/node_modules
+**/.next
+**/dist
+**/.env
+**/.env.local
+apps/api/data
+apps/web/.data
+apps/web/e2e/.auth
+apps/web/test-results
+apps/web/playwright-report
+packages/contracts/artifacts
+packages/contracts/cache
+packages/contracts/ignition/deployments/chain-31337
+packages/contracts/deployments/31337.json

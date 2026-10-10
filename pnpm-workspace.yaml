@@ -1,0 +1,13 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - "@tailwindcss/oxide"
+  - unrs-resolver
+
+# better-sqlite3 ships prebuilt N-API binaries ("gypfile": false); never compile it.
+ignoredBuiltDependencies:
+  - better-sqlite3

@@ -1,0 +1,70 @@
+# Full local stack: chain → deployer (one-shot) → api → web, plus the static verifier.
+#   cp apps/api/.env.example apps/api/.env   # or: pnpm run setup:env
+#   docker compose up --build
+# Web http://localhost:3000 · API http://localhost:4000 · verifier http://localhost:5174 · chain http://localhost:8545
+services:
+  chain:
+    build: { context: ., target: chain }
+    ports: ["8545:8545"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8545',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'eth_chainId',params:[]})}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 3s
+      retries: 40
+
+  deployer:
+    build: { context: ., target: deployer }
+    environment:
+      HARDHAT_LOCAL_RPC: http://chain:8545
+    volumes:
+      - deployments:/repo/packages/contracts/deployments
+    depends_on:
+      chain: { condition: service_healthy }
+
+  api:
+    build: { context: ., target: api }
+    env_file: apps/api/.env
+    environment:
+      NODE_ENV: development
+      HOST: 0.0.0.0
+      DATABASE_PATH: /data/graspchain.db
+      CHAIN_ID: "31337"
+      CHAIN_RPC_URL: http://chain:8545
+      CHAIN_PUBLIC_RPC_URL: http://localhost:8545
+      WEB_ORIGIN: http://localhost:3000
+      PUBLIC_WEB_URL: http://localhost:3000
+      VERIFIER_URL: http://localhost:5174/
+    ports: ["4000:4000"]
+    volumes:
+      - apidata:/data
+      - deployments:/repo/packages/contracts/deployments:ro
+    depends_on:
+      deployer: { condition: service_completed_successfully }
+
+  web:
+    build:
+      context: .
+      target: web
+      args: { API_ORIGIN: http://api:4000 }
+    ports: ["3000:3000"]
+    depends_on:
+      api: { condition: service_healthy }
+
+  verifier:
+    build: { context: ., target: verifier }
+    environment:
+      VERIFIER_RPC_URL: http://localhost:8545
+    ports: ["5174:5174"]
+    volumes:
+      - deployments:/repo/packages/contracts/deployments:ro
+    depends_on:
+      deployer: { condition: service_completed_successfully }
+
+volumes:
+  apidata:
+  deployments:

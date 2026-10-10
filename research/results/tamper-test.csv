@@ -1,0 +1,8 @@
+field,V1,V2,V3,detected
+finalScore,fail,fail,pass,yes
+answerHash,fail,pass,pass,yes
+createdAt,fail,pass,pass,yes
+models.jev,fail,pass,pass,yes
+rubricVersion,fail,pass,pass,yes
+studentRef,fail,pass,pass,yes
+readSecondsGranted,fail,pass,pass,yes

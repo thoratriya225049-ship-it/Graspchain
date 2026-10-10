@@ -1,0 +1,28 @@
+{
+  "name": "contracts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "AssessmentRegistry (Solidity ^0.8.24, OpenZeppelin 5) with Hardhat 3, node:test tests and Ignition deploys.",
+  "scripts": {
+    "build": "hardhat build",
+    "test": "hardhat test nodejs",
+    "node": "hardhat node",
+    "deploy:local": "hardhat ignition deploy ignition/modules/AssessmentRegistry.ts --network localhost && tsx scripts/export-deployment.ts 31337",
+    "deploy:sepolia": "hardhat ignition deploy ignition/modules/AssessmentRegistry.ts --network sepolia --verify && tsx scripts/export-deployment.ts 11155111",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-ethers": "4.2.0",
+    "@nomicfoundation/hardhat-ignition": "3.1.8",
+    "@nomicfoundation/hardhat-ignition-ethers": "3.1.6",
+    "@nomicfoundation/hardhat-network-helpers": "3.0.11",
+    "@nomicfoundation/hardhat-node-test-runner": "3.1.0",
+    "@nomicfoundation/hardhat-verify": "3.1.2",
+    "@nomicfoundation/ignition-core": "3.1.10",
+    "@openzeppelin/contracts": "5.6.1",
+    "ethers": "6.17.0",
+    "hardhat": "3.19.0"
+  }
+}

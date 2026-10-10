@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Graspchain Verifier</title>
+    <meta name="description" content="Check a Graspchain receipt against the public AssessmentRegistry, entirely in your browser." />
+    <link rel="icon" href="favicon.svg" />
+    <style>
+      :root {
+        --paper: #f3f0e8;
+        --raised: #fbf9f4;
+        --sunk: #e9e4d8;
+        --ink: #15171a;
+        --ink2: #3c4046;
+        --ink3: #64676c;
+        --rule: #d6cfc0;
+        --signal: #c8461f;
+        --ok: #2d6847;
+        --warn: #845600;
+        --bad: #9e2238;
+        --none: #64676c;
+        --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+        --sans: ui-sans-serif, system-ui, "Segoe UI", -apple-system, sans-serif;
+        --mono: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        color-scheme: light;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        background: var(--paper);
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
+      }
+      body {
+        margin: 0;
+        font: 15px/1.55 var(--sans);
+        background: var(--paper);
+      }
+      .frame {
+        max-width: 72rem;
+        margin: 0 auto;
+        padding: 0 clamp(1rem, 4vw, 2.5rem);
+      }
+      .rail {
+        background: var(--ink);
+        color: #f3f0e8cc;
+        font: 11px/16px var(--mono);
+      }
+      .rail .frame {
+        padding-top: 6px;
+        padding-bottom: 6px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 24px;
+      }
+      .rail b {
+        font-weight: 400;
+        color: #f3f0e880;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        font-family: var(--sans);
+        margin-right: 8px;
+      }
+      header.top {
+        border-bottom: 1px solid var(--rule);
+      }
+      header.top .frame {
+        height: 64px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font: 600 22px/1 var(--serif);
+        letter-spacing: -0.02em;
+      }
+      .eyebrow {
+        font: 600 11px/16px var(--sans);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--ink3);
+        margin: 0;
+      }
+      h1 {
+        font: 400 clamp(2rem, 4vw, 3.25rem)/1.05 var(--serif);
+        letter-spacing: -0.02em;
+        margin: 14px 0 0;
+      }
+      h2 {
+        font: 400 1.4rem/1.2 var(--serif);
+        margin: 0;
+      }
+      p {
+        margin: 0;
+      }
+      .lede {
+        margin-top: 14px;
+        max-width: 40rem;
+        font-size: 1.0625rem;
+        color: var(--ink2);
+      }
+      .grid {
+        display: grid;
+        gap: 48px;
+        margin-top: 40px;
+        padding-top: 32px;
+        border-top: 1px solid var(--ink);
+      }
+      @media (min-width: 900px) {
+        .grid {
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+          gap: 72px;
+        }
+      }
+      label.field {
+        display: block;
+        margin-top: 22px;
+      }
+      input[type="text"],
+      textarea {
+        width: 100%;
+        font: 14px/1.5 var(--mono);
+        color: var(--ink);
+        background: var(--raised);
+        border: 1px solid #b3aa97;
+        border-radius: 2px;
+        padding: 9px 11px;
+      }
+      textarea {
+        min-height: 110px;
+        resize: vertical;
+      }
+      input:focus,
+      textarea:focus {
+        outline: none;
+        border-color: var(--ink);
+      }
+      :focus-visible {
+        outline: 2px solid var(--signal);
+        outline-offset: 2px;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        height: 40px;
+        padding: 0 16px;
+        border-radius: 4px;
+        border: 1px solid var(--ink);
+        background: var(--ink);
+        color: var(--paper);
+        font: 500 15px var(--sans);
+        cursor: pointer;
+      }
+      .btn.secondary {
+        background: transparent;
+        color: var(--ink);
+      }
+      .file {
+        margin-top: 10px;
+        font-size: 14px;
+      }
+      .hint {
+        margin-top: 8px;
+        font-size: 12px;
+        color: var(--ink3);
+      }
+      .facts {
+        margin-top: 28px;
+        border-top: 1px solid var(--rule);
+        padding-top: 14px;
+        font-size: 13px;
+        color: var(--ink2);
+      }
+      .facts div {
+        display: grid;
+        grid-template-columns: 7.5rem minmax(0, 1fr);
+        gap: 12px;
+        padding: 6px 0;
+      }
+      .facts dt {
+        color: var(--ink3);
+      }
+      .facts dd {
+        margin: 0;
+        font-family: var(--mono);
+        word-break: break-all;
+      }
+      .status {
+        padding-bottom: 20px;
+        border-bottom: 1px solid var(--ink);
+      }
+      .status h2 {
+        font-size: clamp(1.75rem, 3vw, 2.5rem);
+      }
+      .status.ok h2 {
+        color: var(--ok);
+      }
+      .status.warn h2 {
+        color: var(--warn);
+      }
+      .status.bad h2 {
+        color: var(--bad);
+      }
+      .status.none h2 {
+        color: var(--none);
+      }
+      .status p {
+        margin-top: 8px;
+        color: var(--ink2);
+      }
+      ol.checks {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      .check {
+        display: grid;
+        grid-template-columns: 2.5rem minmax(0, 1fr);
+        gap: 10px;
+        padding: 16px 0;
+        border-bottom: 1px solid var(--rule);
+      }
+      .cid {
+        font: 13px var(--mono);
+        color: var(--ink3);
+        padding-top: 2px;
+      }
+      .crow {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .cstate {
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .check.pass .cstate {
+        color: var(--ok);
+      }
+      .check.fail .cstate {
+        color: var(--bad);
+      }
+      .check.pending .cstate {
+        color: var(--warn);
+      }
+      .check.not_applicable .cstate,
+      .check.unavailable .cstate {
+        color: var(--none);
+      }
+      .check p {
+        margin-top: 4px;
+        font-size: 14px;
+      }
+      .muted {
+        color: var(--ink3);
+      }
+      .doc {
+        margin-top: 28px;
+        border: 1px solid var(--ink);
+        background: var(--raised);
+        padding: 20px;
+        box-shadow: 0 24px 48px -28px rgb(21 23 26 / 0.3);
+      }
+      .doc dl {
+        margin: 12px 0 0;
+      }
+      .doc div {
+        display: grid;
+        grid-template-columns: 8rem minmax(0, 1fr);
+        gap: 12px;
+        padding: 7px 0;
+        border-bottom: 1px solid var(--rule);
+        font-size: 14px;
+      }
+      .doc div:last-child {
+        border-bottom: 0;
+      }
+      .doc dt {
+        color: var(--ink3);
+      }
+      .doc dd {
+        margin: 0;
+        word-break: break-all;
+      }
+      .mono {
+        font-family: var(--mono);
+        font-size: 13px;
+      }
+      details {
+        margin-top: 18px;
+        font-size: 13px;
+      }
+      summary {
+        cursor: pointer;
+        color: var(--ink3);
+      }
+      pre {
+        white-space: pre-wrap;
+        word-break: break-all;
+        font: 12px/1.5 var(--mono);
+        background: var(--sunk);
+        padding: 12px;
+        margin: 8px 0 0;
+      }
+      .net {
+        margin-top: 28px;
+        font-size: 13px;
+        border-left: 2px solid var(--ink);
+        padding-left: 12px;
+      }
+      footer {
+        margin-top: 80px;
+        border-top: 1px solid var(--rule);
+        padding: 28px 0 40px;
+        font-size: 12px;
+        color: var(--ink3);
+      }
+      a {
+        color: inherit;
+        text-underline-offset: 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="rail" role="note">
+      <div class="frame">
+        <span><b>Chain</b><span id="chain-name"></span></span><span><b>Registry</b><span id="registry"></span></span
+        ><span><b>Checks against</b>the registry over public RPC</span>
+      </div>
+    </div>
+    <header class="top">
+      <div class="frame">
+        <span class="brand"
+          ><svg width="18" height="18" viewBox="0 0 22 22" aria-hidden="true">
+            <rect x="1.2" y="1.2" width="12" height="12" rx="1.6" fill="none" stroke="#15171a" stroke-width="2.1" />
+            <rect x="8.8" y="8.8" width="12" height="12" rx="1.6" fill="#c8461f" /></svg
+          >Graspchain <span style="font: 400 14px var(--sans); color: var(--ink3); letter-spacing: 0">Independent verifier</span></span
+        >
+      </div>
+    </header>
+    <main class="frame" style="padding-top: 48px">
+      <p class="eyebrow">Check a receipt without trusting anyone</p>
+      <h1>Was this result changed after it was committed?</h1>
+      <p class="lede">
+        This page hashes the receipt here in your browser (RFC 8785 canonical JSON, SHA-256) and asks the public AssessmentRegistry contract whether that hash
+        was committed. The check itself never depends on Graspchain&rsquo;s servers. If you opened a QR link, the receipt was fetched from the address in that
+        link — and is verified, not trusted; upload your own copy for a fully offline-of-Graspchain check. The list below shows every host this page has
+        contacted.
+      </p>
+
+      <div class="grid">
+        <section>
+          <h2>Your receipt</h2>
+          <label class="field"
+            ><span class="eyebrow">Upload the JSON file you downloaded</span>
+            <input id="file" class="file" type="file" accept="application/json,.json" />
+          </label>
+          <p class="hint">Read locally. The file is never uploaded.</p>
+          <label class="field"
+            ><span class="eyebrow">Or paste it</span>
+            <textarea id="paste" spellcheck="false" placeholder='{"schema":"graspchain.receipt/1", …}'></textarea>
+          </label>
+          <p style="margin-top: 10px"><button id="paste-go" class="btn secondary" type="button">Verify pasted receipt</button></p>
+          <label class="field"
+            ><span class="eyebrow">RPC endpoint</span>
+            <input id="rpc" type="text" spellcheck="false" />
+          </label>
+          <p class="hint">Any JSON-RPC node for this chain works — use your own if you prefer. Local demo chain: http://127.0.0.1:8545</p>
+          <div class="net">
+            <p class="eyebrow">Hosts this page has contacted</p>
+            <p id="hosts" class="mono" style="margin-top: 4px"></p>
+          </div>
+        </section>
+
+        <section id="result" hidden aria-live="polite">
+          <div id="status" class="status">
+            <h2 id="status-title"></h2>
+            <p id="status-body"></p>
+          </div>
+          <ol id="checks" class="checks"></ol>
+          <p id="chainfacts" class="hint" style="margin-top: 14px"></p>
+          <div class="doc">
+            <p class="eyebrow">The receipt</p>
+            <p id="source" class="hint"></p>
+            <dl>
+              <div>
+                <dt>Assessment id</dt>
+                <dd id="aid" class="mono"></dd>
+              </div>
+              <div>
+                <dt>Hash (computed here)</dt>
+                <dd id="hash" class="mono"></dd>
+              </div>
+              <div>
+                <dt>Final score</dt>
+                <dd id="score" style="font: 20px var(--serif)"></dd>
+              </div>
+              <div>
+                <dt>Article</dt>
+                <dd id="article" class="mono"></dd>
+              </div>
+              <div>
+                <dt>Judge · LLM</dt>
+                <dd id="models" class="mono"></dd>
+              </div>
+              <div>
+                <dt>Created</dt>
+                <dd id="created"></dd>
+              </div>
+            </dl>
+            <details>
+              <summary>Exact bytes that were hashed</summary>
+              <pre id="canonical"></pre>
+            </details>
+          </div>
+        </section>
+      </div>
+    </main>
+    <footer>
+      <div class="frame">
+        Graspchain independent verifier · static page · ethers 6.17.0 (vendored) · canonicalize 5.1.0 (bundled) · receipts contain no personal data, only salted
+        hashes.
+      </div>
+    </footer>
+    <script src="vendor/ethers.umd.min.js"></script>
+    <script src="config.js"></script>
+    <script type="module" src="verifier.js"></script>
+  </body>
+</html>

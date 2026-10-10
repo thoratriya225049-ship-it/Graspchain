@@ -1,0 +1,15 @@
+node_modules
+.next
+dist
+artifacts
+cache
+coverage
+playwright-report
+test-results
+pnpm-lock.yaml
+*.md
+apps/web/.data
+apps/api/data
+packages/contracts/ignition/deployments
+packages/contracts/deployments
+content

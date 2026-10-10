@@ -1,0 +1,56 @@
+# lint → typecheck → unit/integration → contracts → build → e2e (full local stack) → secret scan
+name: ci
+on:
+  push: { branches: [main] }
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10.34.6 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm typecheck
+      - run: pnpm --filter @graspchain/shared test
+      - run: pnpm --filter api test
+      - run: pnpm --filter contracts test
+      - run: pnpm --filter verifier build
+      - run: pnpm --filter web build
+        env: { API_ORIGIN: "http://127.0.0.1:4000" }
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: checks
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10.34.6 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter web exec playwright install --with-deps chromium
+      # Local demo configuration: generated secrets, local judge, local Hardhat chain. No external keys.
+      - run: pnpm run setup:env
+      - name: Start the stack (chain, deploy, verifier, API, web)
+        run: pnpm start > stack.log 2>&1 &
+      - run: npx --yes wait-on@8.0.3 -t 300000 http://localhost:3000/login
+      - run: pnpm test:e2e
+      - if: failure()
+        run: tail -n 200 stack.log
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: playwright-report, path: apps/web/playwright-report }
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: gitleaks/gitleaks-action@v2
+        env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }

@@ -1,0 +1,23 @@
+{
+  "name": "@graspchain/shared",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "description": "Types, zod schemas, receipt canonicalization, fusion, Jev question builder, claim and feedback validators.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "canonicalize": "5.1.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "vitest": "4.1.11"
+  }
+}

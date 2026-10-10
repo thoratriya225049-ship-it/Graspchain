@@ -1,0 +1,241 @@
+{
+  "id": "A2",
+  "title": "How retrieval-augmented generation answers from sources",
+  "dek": "Why a language model that looks things up first can cite its evidence, and where it still goes wrong.",
+  "topic": "AI systems",
+  "difficulty": 2,
+  "skillTags": [
+    "mechanism",
+    "coverage"
+  ],
+  "rubricVersion": 1,
+  "sentences": [
+    "A language model on its own answers from patterns it absorbed during training, which can be outdated or simply wrong.",
+    "Retrieval-augmented generation, or RAG, adds a step before the answer is written.",
+    "First, the question is turned into a numerical representation called an embedding.",
+    "The system compares that embedding with embeddings of documents stored in an index and retrieves the few passages that are closest in meaning.",
+    "Those passages are placed into the model's prompt alongside the question.",
+    "The model then writes its answer using the retrieved text as evidence, which makes it possible to cite where each claim came from.",
+    "Because the knowledge lives in the index rather than in the model's weights, updating what the system knows only requires adding or replacing documents, not retraining the model.",
+    "RAG is not a guarantee of accuracy.",
+    "If retrieval returns the wrong passages, the model can still produce a confident but unsupported answer.",
+    "Good systems therefore measure retrieval quality separately from answer quality."
+  ],
+  "breaks": [
+    2,
+    7
+  ],
+  "keyPoints": [
+    {
+      "id": "kp1",
+      "weight": 3,
+      "concept": "Retrieve by meaning",
+      "statement": "The question is turned into an embedding and the closest passages are retrieved from an index.",
+      "sentenceIdx": [
+        2,
+        3
+      ],
+      "cues": [
+        [
+          "embed",
+          "vector",
+          "numerical representation",
+          "numbers"
+        ],
+        [
+          "retriev",
+          "search",
+          "find",
+          "fetch",
+          "closest",
+          "similar",
+          "nearest",
+          "look up"
+        ],
+        [
+          "index",
+          "documents",
+          "database",
+          "passages",
+          "store"
+        ]
+      ],
+      "addHint": "Explain the retrieval step: the question becomes an embedding, which is compared with document embeddings to fetch the closest passages.",
+      "example": "The question is converted into an embedding and compared with stored document embeddings, so the system fetches the passages closest in meaning."
+    },
+    {
+      "id": "kp2",
+      "weight": 3,
+      "concept": "Answer from evidence",
+      "statement": "Retrieved passages go into the prompt and are used as evidence, which makes citations possible.",
+      "sentenceIdx": [
+        4,
+        5
+      ],
+      "cues": [
+        [
+          "prompt",
+          "context",
+          "alongside",
+          "given to the model",
+          "fed",
+          "added to"
+        ],
+        [
+          "evidence",
+          "cite",
+          "citation",
+          "source",
+          "grounded",
+          "based on",
+          "uses the passages",
+          "using the passages"
+        ]
+      ],
+      "addHint": "Say what happens to the retrieved passages: they are added to the prompt and the model answers from them, so it can cite sources.",
+      "example": "The retrieved passages are added to the prompt, so the model answers from that evidence and can cite where each claim came from."
+    },
+    {
+      "id": "kp3",
+      "weight": 2,
+      "concept": "Update without retraining",
+      "statement": "Knowledge lives in the index, so it can be updated by changing documents instead of retraining the model.",
+      "sentenceIdx": [
+        6
+      ],
+      "cues": [
+        [
+          "updat",
+          "add",
+          "replac",
+          "new documents",
+          "change the documents",
+          "changing documents"
+        ],
+        [
+          "retrain",
+          "training",
+          "weights",
+          "without training"
+        ]
+      ],
+      "addHint": "Point out why RAG is easy to keep current: you change the documents in the index rather than retraining the model.",
+      "example": "Because the knowledge is in the index, you can update it by replacing documents instead of retraining the model."
+    },
+    {
+      "id": "kp4",
+      "weight": 1,
+      "concept": "Retrieval can still fail",
+      "statement": "Wrong passages can still produce a confident, unsupported answer, so retrieval quality must be measured.",
+      "sentenceIdx": [
+        7,
+        8,
+        9
+      ],
+      "cues": [
+        [
+          "wrong",
+          "bad",
+          "poor",
+          "fail",
+          "irrelevant",
+          "incorrect",
+          "not a guarantee",
+          "no guarantee"
+        ],
+        [
+          "retriev",
+          "passages"
+        ],
+        [
+          "confident",
+          "unsupported",
+          "hallucinat",
+          "measure",
+          "quality"
+        ]
+      ],
+      "addHint": "Add the limitation: if retrieval returns the wrong passages the answer can still be confidently wrong, so retrieval quality is measured separately.",
+      "example": "RAG is not a guarantee: if the wrong passages are retrieved, the model can still give a confident but unsupported answer."
+    }
+  ],
+  "commonMisconceptions": [
+    {
+      "id": "m1",
+      "kpId": "kp4",
+      "statement": "RAG guarantees the answer is accurate",
+      "why": "The article says RAG is not a guarantee of accuracy.",
+      "correction": "RAG reduces unsupported answers, but wrong retrieval still leads to confident wrong answers.",
+      "any": [
+        "always correct",
+        "always accurate",
+        "always right",
+        "never wrong",
+        "guarantees",
+        "eliminates hallucination",
+        "no more hallucination",
+        "cannot hallucinate"
+      ],
+      "unless": [
+        "not always",
+        "doesn't guarantee",
+        "does not guarantee",
+        "no guarantee",
+        "isn't always",
+        "not a guarantee"
+      ]
+    },
+    {
+      "id": "m2",
+      "kpId": "kp3",
+      "statement": "RAG retrains the model when knowledge changes",
+      "why": "RAG does not retrain the model when knowledge changes.",
+      "correction": "Knowledge is updated by changing the documents in the index; the model's weights stay the same.",
+      "any": [
+        "retrains the model",
+        "model is retrained",
+        "fine-tunes the model",
+        "fine tunes the model",
+        "trains the model on"
+      ],
+      "unless": [
+        "without",
+        "not",
+        "no need",
+        "instead",
+        "rather than"
+      ]
+    }
+  ],
+  "purposeCues": [
+    [
+      "retriev",
+      "search",
+      "look up",
+      "looks up",
+      "documents",
+      "passages",
+      "sources"
+    ],
+    [
+      "answer",
+      "generat",
+      "model",
+      "llm"
+    ]
+  ],
+  "samples": [
+    {
+      "label": "Clear explanation",
+      "text": "RAG makes a language model answer from sources instead of only from its training. The question is turned into an embedding and compared with document embeddings in an index, so the closest passages are retrieved. Those passages are added to the prompt, which means the model answers from evidence and can cite where claims came from. Because knowledge lives in the index, you update it by replacing documents instead of retraining. It is not a guarantee though: if retrieval returns the wrong passages the answer can still be confidently wrong."
+    },
+    {
+      "label": "Contains a misconception",
+      "text": "RAG is a way of using AI with documents. The model looks up documents and then it is always correct because it uses real information, so hallucinations are eliminated completely. When new documents arrive the system retrains the model on them so it knows more. This is used by many companies for chatbots and search tools today."
+    },
+    {
+      "label": "Keyword stuffing",
+      "text": "RAG retrieval embedding index passages prompt evidence citation model retrieval embedding index passages prompt evidence citation documents retrain weights hallucination confident quality retrieval embedding index passages prompt evidence documents retrieval."
+    }
+  ]
+}

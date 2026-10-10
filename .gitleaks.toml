@@ -1,0 +1,7 @@
+# Hardhat's account #0 key is public and only accepted on the local chain (CHAIN_ID=31337).
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Publicly known Hardhat test key (local chain only)"
+regexes = ['''0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80''']
