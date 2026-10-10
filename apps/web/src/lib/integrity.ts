@@ -175,11 +175,7 @@ export class IntegrityMonitor {
       const ev = e as KeyboardEvent;
       const k = ev.key;
       const c = ev.code;
-      if (
-        k === "PrintScreen" ||
-        c === "PrintScreen" ||
-        ((ev.metaKey || ev.ctrlKey) && ev.shiftKey && (k.toLowerCase() === "s" || c === "KeyS"))
-      ) {
+      if (k === "PrintScreen" || c === "PrintScreen" || ((ev.metaKey || ev.ctrlKey) && ev.shiftKey && (k.toLowerCase() === "s" || c === "KeyS"))) {
         this.onScreenshotAttempt?.();
         this.screenshotKey("PrintScreen");
         try {

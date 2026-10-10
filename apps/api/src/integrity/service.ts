@@ -193,7 +193,10 @@ export class IntegrityService {
   }
 
   /** The integrity assessment for an attempt, from stored facts only (deterministic, re-runnable). */
-  assess(i: { sessionId: string; seeded: boolean; wordCount: number; copy: CopyAnalysis | null }): { assessment: IntegrityAssessment; events: IntegrityEvent[] } {
+  assess(i: { sessionId: string; seeded: boolean; wordCount: number; copy: CopyAnalysis | null }): {
+    assessment: IntegrityAssessment;
+    events: IntegrityEvent[];
+  } {
     const s = this.ctx.db.prepare("SELECT hiddenAt, submittedAt FROM sessions WHERE id = ?").get(i.sessionId) as {
       hiddenAt: number | null;
       submittedAt: number | null;

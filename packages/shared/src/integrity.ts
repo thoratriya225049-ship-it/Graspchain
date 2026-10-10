@@ -354,9 +354,10 @@ export function assessIntegrity(input: IntegrityInput): IntegrityAssessment {
 
   const fullscreenExits = input.events.filter((e) => e.type === "FULLSCREEN_EXIT" && atLeastLow(e)).length;
   if (fullscreenExits >= 8)
-    findings.push(derived("REPEATED_FULLSCREEN_EXIT", "HIGH", `Left full screen ${fullscreenExits} times. Controlled assessment environment was not maintained.`));
-  else if (fullscreenExits >= 5)
-    findings.push(derived("REPEATED_FULLSCREEN_EXIT", "MEDIUM", `Left full screen ${fullscreenExits} times.`));
+    findings.push(
+      derived("REPEATED_FULLSCREEN_EXIT", "HIGH", `Left full screen ${fullscreenExits} times. Controlled assessment environment was not maintained.`),
+    );
+  else if (fullscreenExits >= 5) findings.push(derived("REPEATED_FULLSCREEN_EXIT", "MEDIUM", `Left full screen ${fullscreenExits} times.`));
 
   const copies = input.events.filter((e) => e.type === "COPY_ATTEMPT" && e.phase === "reading").length;
   if (copies >= 3) findings.push(derived("REPEATED_COPY_ATTEMPTS", "MEDIUM", `Tried to copy article text ${copies} times.`));

@@ -216,7 +216,10 @@ export const EVIDENCE_RULES: { id: string; text: string }[] = [
   { id: "KP-3", text: "A key point with linked supported or partly supported claims that conveys only part of the point is PARTIALLY_UNDERSTOOD." },
   { id: "KP-4", text: "A key point with no linked claim backed by verified evidence is MISSED." },
   { id: "MP-1", text: "The central idea counts as stated when the extractor's quote of it is inside a claim the article supports." },
-  { id: "MP-2", text: "It also counts as stated when key points carrying at least 75% of the rubric weight are UNDERSTOOD: explaining the whole article conveys its point." },
+  {
+    id: "MP-2",
+    text: "It also counts as stated when key points carrying at least 75% of the rubric weight are UNDERSTOOD: explaining the whole article conveys its point.",
+  },
   { id: "COPY", text: "Claims copied word for word from the article are not judged and earn no credit (see the copy-detection rules)." },
 ];
 

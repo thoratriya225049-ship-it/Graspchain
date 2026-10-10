@@ -63,7 +63,15 @@ describe("copy detection (deterministic, word-level)", () => {
   });
 
   it("maps copying onto integrity: warning → review → violation (COMPROMISED)", () => {
-    const base = { events: [{ type: "MONITOR_START" as const, source: "client" as const, phase: "reading" as const, at: 1, clientAt: null, clientId: "c", seq: 1, detail: {} }], seeded: false, wordCount: 80, writingMs: 300_000, clients: [] };
+    const base = {
+      events: [
+        { type: "MONITOR_START" as const, source: "client" as const, phase: "reading" as const, at: 1, clientAt: null, clientId: "c", seq: 1, detail: {} },
+      ],
+      seeded: false,
+      wordCount: 80,
+      writingMs: 300_000,
+      clients: [],
+    };
     const statusOf = (answer: string) => assessIntegrity({ ...base, copy: run(answer) });
     expect(statusOf(ANSWERS.genuine).status).toBe("NORMAL");
     expect(statusOf(ANSWERS.paraphrase).status).toBe("NORMAL");

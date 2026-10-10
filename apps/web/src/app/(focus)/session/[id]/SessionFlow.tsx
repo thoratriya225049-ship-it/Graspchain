@@ -354,9 +354,7 @@ export function SessionFlow({
             <p className="mt-3 text-sm text-ink-3">{article.wordCount} words</p>
             <div
               className={`prose-article mt-10 transition-[filter,opacity] duration-150 ${
-                !windowActive || (fullscreenSupported && !fullscreen) || screenshotMask
-                  ? "blur-2xl opacity-10 select-none pointer-events-none"
-                  : ""
+                !windowActive || (fullscreenSupported && !fullscreen) || screenshotMask ? "blur-2xl opacity-10 select-none pointer-events-none" : ""
               }`}
             >
               {paragraphs.map((p, i) => (
@@ -370,7 +368,8 @@ export function SessionFlow({
                   <p className="eyebrow text-bad">Security notice</p>
                   <h2 className="mt-2 font-serif text-xl font-medium text-bad">Screenshot blocked</h2>
                   <p className="mt-2 text-sm text-ink-2">
-                    Screen capture shortcuts are prohibited while reading. The article is temporarily concealed and this attempt has been recorded in your integrity record.
+                    Screen capture shortcuts are prohibited while reading. The article is temporarily concealed and this attempt has been recorded in your
+                    integrity record.
                   </p>
                 </div>
               </div>
@@ -381,7 +380,8 @@ export function SessionFlow({
                   <p className="eyebrow text-signal-ink">Assessment Mode</p>
                   <h2 className="mt-2 font-serif text-xl font-medium text-ink">Full screen required to read</h2>
                   <p className="mt-2 text-sm text-ink-2">
-                    The article cannot be viewed in windowed mode. Leaving full screen is recorded on your integrity receipt. Return to full screen to continue reading.
+                    The article cannot be viewed in windowed mode. Leaving full screen is recorded on your integrity receipt. Return to full screen to continue
+                    reading.
                   </p>
                   <Button size="md" variant="primary" className="mt-5 w-full" onClick={() => void requestFullscreen()}>
                     Return to full screen
