@@ -17,6 +17,7 @@
     "lint": "eslint .",
     "typecheck": "pnpm -r typecheck && tsc -p tsconfig.json",
     "migrate": "pnpm --filter api migrate",
+    "roster": "pnpm --filter api roster",
     "seed": "pnpm --filter api seed",
     "backup": "pnpm --filter api backup",
     "chain:local": "pnpm --filter contracts node",

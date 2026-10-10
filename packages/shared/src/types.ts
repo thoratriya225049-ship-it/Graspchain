@@ -1,3 +1,4 @@
+import type { CopyAnalysis, CopySpan } from "./copy";
 import type { EvidenceDecision, KpClassification } from "./evidence";
 import type { IntegrityAssessment, IntegrityDecision, IntegrityOutcome, IntegrityStatus } from "./integrity";
 
@@ -213,6 +214,8 @@ export interface ScorePayload {
   evidence?: EvidenceDecision | null;
   /** Assessment conditions, judged separately from comprehension (never deducted from the score). */
   integrity?: IntegrityAssessment | null;
+  /** Word-for-word copy detection against the article; copied claims earn no credit when withheld. */
+  copy?: CopyAnalysis | null;
 }
 
 export type JudgeKind = "jev" | "local" | "evidence";
@@ -230,6 +233,8 @@ export interface ClaimSummary {
   partial: number;
   notInArticle: number;
   contradicted: number;
+  /** Claims copied from the article and therefore not judged (absent on older receipts). */
+  copied?: number;
 }
 
 // ───────────────────────── Feedback (Stage 4) ─────────────────────────
@@ -273,6 +278,8 @@ export interface XRay {
     why: string | null;
   }[];
   answer: string;
+  /** Passages of the answer copied word for word from the article (not judged). */
+  copied?: CopySpan[];
 }
 
 // ───────────────────────── Receipt (PRD §9.4.2) ─────────────────────────
@@ -324,6 +331,9 @@ export interface ReceiptIntegrity {
   eventCount: number;
   eventsHash: string;
   findings: string[];
+  /** Share of the answer copied word for word from the article, and the rules that measured it. */
+  copiedRatio?: number;
+  copyRules?: string;
 }
 
 // ───────────────────────── Verification (PRD §9.4.5) ─────────────────────────

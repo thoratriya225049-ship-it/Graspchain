@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
+import { DEFAULT_COPY_POLICY, type CopyPolicy } from "@graspchain/shared";
 
 /**
  * 12-factor configuration (SYSTEM_DESIGN §11), validated with zod at boot. A missing or invalid
@@ -54,6 +55,13 @@ const Schema = z
     /** Evidence judge: model id for extraction (defaults to LLM_MODEL) and its hard timeout. */
     EVIDENCE_MODEL: optStr,
     EVIDENCE_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
+    /** Copy detection (see packages/shared/src/copy.ts). Ratios are shares of the answer's words. */
+    COPY_MIN_RUN: z.coerce.number().int().min(4).max(30).default(DEFAULT_COPY_POLICY.minRun),
+    COPY_CLAIM_AT: z.coerce.number().min(0.05).max(1).default(DEFAULT_COPY_POLICY.claimCopiedAt),
+    COPY_WARN_AT: z.coerce.number().min(0.01).max(1).default(DEFAULT_COPY_POLICY.warnAt),
+    COPY_REVIEW_AT: z.coerce.number().min(0.01).max(1).default(DEFAULT_COPY_POLICY.reviewAt),
+    COPY_VIOLATION_AT: z.coerce.number().min(0.01).max(1).default(DEFAULT_COPY_POLICY.violationAt),
+    COPY_CREDIT: z.enum(["withhold", "flag_only"]).default(DEFAULT_COPY_POLICY.credit),
     FEEDBACK_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
 
     CLOCK_MODE: z.enum(["fair", "naive"]).default("fair"),
@@ -104,6 +112,9 @@ const Schema = z
     if (c.LLM_PROVIDER === "groq" && c.LLM_MODEL && !c.GROQ_API_KEY && c.DEMO_MODE !== "replay") {
       ctx.addIssue({ code: "custom", path: ["GROQ_API_KEY"], message: "GROQ_API_KEY is required when LLM_PROVIDER=groq and LLM_MODEL is set" });
     }
+    if (!(c.COPY_WARN_AT <= c.COPY_REVIEW_AT && c.COPY_REVIEW_AT <= c.COPY_VIOLATION_AT)) {
+      ctx.addIssue({ code: "custom", path: ["COPY_WARN_AT"], message: "Copy thresholds must satisfy COPY_WARN_AT ≤ COPY_REVIEW_AT ≤ COPY_VIOLATION_AT" });
+    }
     if (c.DEPLOYER_PRIVATE_KEY && !/^0x[0-9a-fA-F]{64}$/.test(c.DEPLOYER_PRIVATE_KEY)) {
       ctx.addIssue({ code: "custom", path: ["DEPLOYER_PRIVATE_KEY"], message: "DEPLOYER_PRIVATE_KEY must be 0x followed by 64 hex characters" });
     }
@@ -120,6 +131,7 @@ const Schema = z
   });
 
 export type Config = z.infer<typeof Schema> & {
+  copyPolicy: CopyPolicy;
   dbPath: string;
   llmEnabled: boolean;
   registryAddress: string | null;
@@ -151,6 +163,14 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   const llmKey = c.LLM_PROVIDER === "google" ? c.GOOGLE_GENERATIVE_AI_API_KEY : c.LLM_PROVIDER === "groq" ? c.GROQ_API_KEY : undefined;
   return {
     ...c,
+    copyPolicy: {
+      minRun: c.COPY_MIN_RUN,
+      claimCopiedAt: c.COPY_CLAIM_AT,
+      warnAt: c.COPY_WARN_AT,
+      reviewAt: c.COPY_REVIEW_AT,
+      violationAt: c.COPY_VIOLATION_AT,
+      credit: c.COPY_CREDIT,
+    },
     dbPath: path.isAbsolute(c.DATABASE_PATH) ? c.DATABASE_PATH : path.resolve(API_ROOT, c.DATABASE_PATH),
     llmEnabled: c.LLM_PROVIDER !== "none" && !!c.LLM_MODEL && (!!llmKey || c.DEMO_MODE === "replay"),
     registryAddress,

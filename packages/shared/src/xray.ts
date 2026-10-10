@@ -1,7 +1,15 @@
+import type { CopyAnalysis } from "./copy";
 import type { Article, Claim, FeedbackRecord, FusionResult, XRay } from "./types";
 
 /** X-Ray payload (PRD §9.3): article sentences, key-point labels, claims linked to sentences. */
-export function buildXray(article: Article, answer: string, claims: Claim[], fused: FusionResult, feedback: FeedbackRecord | null): XRay {
+export function buildXray(
+  article: Article,
+  answer: string,
+  claims: Claim[],
+  fused: FusionResult,
+  feedback: FeedbackRecord | null,
+  copy: CopyAnalysis | null = null,
+): XRay {
   const mis = new Map((feedback?.feedback.misunderstood ?? []).map((m) => [m.claimId, m]));
   return {
     articleId: article.id,
@@ -28,5 +36,6 @@ export function buildXray(article: Article, answer: string, claims: Claim[], fus
       };
     }),
     answer,
+    copied: copy?.spans ?? [],
   };
 }

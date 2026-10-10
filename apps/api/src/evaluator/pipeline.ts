@@ -8,7 +8,9 @@ import {
   buildState,
   buildXray,
   canonicalize,
+  detectCopy,
   evidenceClassifications,
+  maskCopiedClaims,
   fiveGramOverlap,
   fuse,
   mergeAnswers,
@@ -210,17 +212,25 @@ export class Evaluator {
       for (const c of claims) ins.run(crypto.randomUUID(), attemptId, c.claimId, c.text, c.start, c.end, c.source);
     })();
 
+    // ── Copy detection (deterministic). Own words earn credit; claims copied word for word from
+    // the article are withheld from judging (policy "withhold"), so they earn none. ──
+    const copy = detectCopy(answer, articleText(article), claims, cfg.copyPolicy);
+    const withhold = cfg.copyPolicy.credit === "withhold";
+    const copiedIds = new Set(copy.claims.filter((c) => c.copied).map((c) => c.claimId));
+    const judged = withhold ? claims.filter((c) => !copiedIds.has(c.claimId)) : claims;
+    const judgedAnswer = withhold ? maskCopiedClaims(answer, claims, copy) : answer;
+
     // ── Stage 2: judge (one systemOne call) → gating / re-ask ──
     this.emit(attemptId, { type: "stage", data: { stage: "judging" } });
     const tj = this.ctx.now();
-    const state = buildState(article, answer, claims);
-    const questions = buildQuestions(article, claims);
-    const first: JudgeCall = await judge.systemOne({ article, state, questions, claims });
+    const state = buildState(article, judgedAnswer, judged);
+    const questions = buildQuestions(article, judged);
+    const first: JudgeCall = await judge.systemOne({ article, state, questions, claims: judged });
     let answers: JevAnswers = first.answers;
     let inputTokens = first.usage.input_tokens;
     let debias: JudgeCall | null = null;
     if (cfg.JEV_ORDER_DEBIAS && judge.kind === "jev") {
-      debias = await judge.systemOne({ article, state, questions: buildQuestions(article, claims, { reversed: true }), claims });
+      debias = await judge.systemOne({ article, state, questions: buildQuestions(article, judged, { reversed: true }), claims: judged });
       const choiceOnly = Object.fromEntries(Object.entries(debias.answers).filter(([, x]) => x.type === "choice"));
       answers = mergeAnswers(answers, choiceOnly);
       inputTokens += debias.usage.input_tokens;
@@ -229,7 +239,7 @@ export class Evaluator {
     let reask: JudgeCall | null = null;
     let stillUncertain: string[] = [];
     if (uncertain.length) {
-      reask = await judge.systemOne({ article, state, questions: buildQuestions(article, claims, { rephrased: true, only: uncertain }), claims });
+      reask = await judge.systemOne({ article, state, questions: buildQuestions(article, judged, { rephrased: true, only: uncertain }), claims: judged });
       answers = mergeAnswers(answers, reask.answers);
       inputTokens += reask.usage.input_tokens;
       stillUncertain = uncertainKeys(Object.fromEntries(uncertain.map((k) => [k, answers[k]])));
@@ -239,14 +249,14 @@ export class Evaluator {
     // ── Stage 3: fuse (deterministic) ──
     this.emit(attemptId, { type: "stage", data: { stage: "scoring" } });
     const overlap5 = fiveGramOverlap(answer, articleText(article));
-    const fused = fuse({ article, claims, answers, overlap5 });
+    const fused = fuse({ article, claims: judged, answers, overlap5 });
     // Integrity is assessed from server-recorded events, separately from comprehension: it never
     // changes the score, it decides whether the score is certified.
     const { assessment: integrity, events: integrityEvents } = this.ctx.integrity.assess({
       sessionId: a.sessionId,
       seeded: !!a.seeded,
       wordCount: a.wordCount,
-      answerOverlap5: overlap5,
+      copy,
     });
     const n = (...types: string[]) => types.reduce((s, t) => s + (integrity.counts[t as keyof typeof integrity.counts] ?? 0), 0);
     const flags: Flags = {
@@ -264,6 +274,7 @@ export class Evaluator {
       partial: fused.claims.filter((c) => c.label === "partial").length,
       notInArticle: fused.claims.filter((c) => c.label === "not_in_article").length,
       contradicted: fused.claims.filter((c) => c.label === "contradicted").length,
+      copied: claims.length - judged.length,
     };
     const tScoreMs = this.ctx.now() - t0;
     const score: ScorePayload = {
@@ -287,6 +298,7 @@ export class Evaluator {
       segmentation,
       evidence,
       integrity,
+      copy,
     };
     const jevTokens = judge.kind === "jev" ? inputTokens : 0;
     const now = nowIso();
@@ -348,7 +360,8 @@ export class Evaluator {
     // ── Stage 4: explain (LLM, streamed) → validate → template fallback ──
     this.emit(attemptId, { type: "stage", data: { stage: "explaining" } });
     const tl = this.ctx.now();
-    const fctx = { article, answer, claims, fused };
+    // Feedback sees only what was judged: copied passages are not praised as understanding.
+    const fctx = { article, answer: judgedAnswer, claims: judged, fused };
     let feedback: FeedbackRecord | null = null;
     let fallbackReason = "No LLM is configured, so feedback is built from the judge's results.";
     let llmTokens = segTokens + (judge.kind === "evidence" ? inputTokens : 0);
@@ -373,7 +386,7 @@ export class Evaluator {
     const llmMs = this.ctx.now() - tl;
     if (!hidden) this.emit(attemptId, { type: "feedback", data: { final: feedback } });
 
-    const xray = buildXray(article, answer, claims, fused, feedback);
+    const xray = buildXray(article, answer, judged, fused, feedback, copy);
     if (!hidden) this.emit(attemptId, { type: "xray", data: xray });
 
     // ── Receipt + outbox (never waits for the chain) ──
@@ -399,6 +412,8 @@ export class Evaluator {
         eventCount: integrity.eventCount,
         eventsHash: await sha256Hex(canonicalize(integrityEvents.map(({ id: _id, ...e }) => e))),
         findings: integrity.findings.filter((f) => f.severity !== "INFO").map((f) => `${f.severity} ${f.code} x${f.count}`),
+        copiedRatio: copy.ratio,
+        copyRules: `${copy.version} minRun=${copy.policy.minRun} warn=${copy.policy.warnAt} review=${copy.policy.reviewAt} violation=${copy.policy.violationAt} credit=${copy.policy.credit}`,
       },
       feedback: feedback.feedback,
       fairness: {

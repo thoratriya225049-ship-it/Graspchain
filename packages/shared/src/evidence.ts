@@ -215,6 +215,9 @@ export const EVIDENCE_RULES: { id: string; text: string }[] = [
   { id: "KP-2", text: "A key point with a linked supported claim that conveys the whole point (shown by a quote inside that claim) is UNDERSTOOD." },
   { id: "KP-3", text: "A key point with linked supported or partly supported claims that conveys only part of the point is PARTIALLY_UNDERSTOOD." },
   { id: "KP-4", text: "A key point with no linked claim backed by verified evidence is MISSED." },
+  { id: "MP-1", text: "The central idea counts as stated when the extractor's quote of it is inside a claim the article supports." },
+  { id: "MP-2", text: "It also counts as stated when key points carrying at least 75% of the rubric weight are UNDERSTOOD: explaining the whole article conveys its point." },
+  { id: "COPY", text: "Claims copied word for word from the article are not judged and earn no credit (see the copy-detection rules)." },
 ];
 
 // ───────────────────────── Validation + decision ─────────────────────────
@@ -420,14 +423,22 @@ export function decideEvidence(raw: unknown, i: EvidencePromptInput & { extracto
           ),
       )
     : null;
+  // MP-2: one missed quote must not cap an answer that explains the whole article.
+  const totalWeight = article.keyPoints.slice(0, 6).reduce((sum, k) => sum + k.weight, 0);
+  const understoodWeight = keyPoints
+    .filter((k) => k.classification === "UNDERSTOOD")
+    .reduce((sum, k) => sum + article.keyPoints.find((kp) => kp.id === k.id)!.weight, 0);
+  const coversWhole = totalWeight > 0 && understoodWeight / totalWeight >= 0.75;
   const mainPurpose = {
-    stated: !!centralClaim,
+    stated: !!centralClaim || coversWhole,
     quote: centralClaim ? centralQuote!.text : null,
     reason: centralClaim
-      ? `Stated in ${centralClaim.claimId}, which the article supports.`
-      : x.centralIdea.stated
-        ? "Reported as stated, but the quote is not in the answer or is not supported by the article."
-        : "The article's central claim is not stated.",
+      ? `Stated in ${centralClaim.claimId}, which the article supports (MP-1).`
+      : coversWhole
+        ? "Key points carrying at least 75% of the rubric weight are understood (MP-2)."
+        : x.centralIdea.stated
+          ? "Reported as stated, but the quote is not in the answer or is not supported by the article."
+          : "The article's central claim is not stated.",
   };
 
   const gibberish = lexicallyGibberish(answer, article);

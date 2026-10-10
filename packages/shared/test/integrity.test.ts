@@ -20,7 +20,7 @@ const ev = (
 const START = ev("MONITOR_START", {}, "reading");
 
 function input(events: IntegrityEvent[], over: Partial<IntegrityInput> = {}): IntegrityInput {
-  return { events: [START, ...events], seeded: false, wordCount: 80, writingMs: 6 * 60_000, answerOverlap5: 0.05, clients: [], ...over };
+  return { events: [START, ...events], seeded: false, wordCount: 80, writingMs: 6 * 60_000, copy: null, clients: [], ...over };
 }
 
 describe("integrity: fair, explainable, evidence-based", () => {
@@ -69,7 +69,7 @@ describe("integrity: fair, explainable, evidence-based", () => {
   });
 
   it("a submission with no monitor running is an integrity risk", () => {
-    const a = assessIntegrity({ events: [], seeded: false, wordCount: 80, writingMs: 600_000, answerOverlap5: 0, clients: [] });
+    const a = assessIntegrity({ events: [], seeded: false, wordCount: 80, writingMs: 600_000, copy: null, clients: [] });
     expect(a.findings[0].code).toBe("MONITORING_ABSENT");
     expect(a.status).toBe("INTEGRITY_RISK");
   });
@@ -99,7 +99,7 @@ describe("integrity: fair, explainable, evidence-based", () => {
   it("is deterministic and labels seeded demo data instead of inventing monitoring", () => {
     const i = input([ev("TAB_SWITCH", { hiddenMs: 20_000 })]);
     expect(assessIntegrity(i)).toEqual(assessIntegrity(i));
-    const s = assessIntegrity({ events: [], seeded: true, wordCount: 60, writingMs: null, answerOverlap5: 0, clients: [] });
+    const s = assessIntegrity({ events: [], seeded: true, wordCount: 60, writingMs: null, copy: null, clients: [] });
     expect(s).toMatchObject({ status: "NORMAL", monitored: false });
     expect(s.findings[0].code).toBe("SEEDED_DEMO");
   });

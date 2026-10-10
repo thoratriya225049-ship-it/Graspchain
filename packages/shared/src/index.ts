@@ -18,3 +18,4 @@ export * from "./sse";
 export * from "./registry";
 export * from "./evidence";
 export * from "./integrity";
+export * from "./copy";

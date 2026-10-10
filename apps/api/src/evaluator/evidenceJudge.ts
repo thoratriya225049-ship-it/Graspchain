@@ -38,6 +38,18 @@ export class EvidenceJudge implements Judge {
     if (!this.llm) throw new AppError(503, "EVIDENCE_NOT_CONFIGURED", "The evidence judge needs an LLM (LLM_PROVIDER, LLM_MODEL and its API key).");
     if (!req.claims) throw new Error("EvidenceJudge needs the validated claims");
     const input = { article: req.article, answer: req.state.student_summary, claims: req.claims };
+    if (input.claims.length === 0) {
+      // Nothing of the student's own to judge (e.g. everything was copied): there is no evidence,
+      // so no LLM call is made and every key point is MISSED by the same rules.
+      const evidence = decideEvidence(
+        { claims: [], keyPoints: [], centralIdea: { stated: false, studentQuote: null }, addressesGrader: { present: false, studentQuote: null } },
+        { ...input, extractor: "none (no claims to judge)" },
+      );
+      const all = decisionToAnswers(evidence, req.article);
+      const answers = Object.fromEntries(Object.keys(req.questions).map((k) => [k, all[k]]));
+      const result = validateJudgeResult({ model: this.model, answers, usage: { input_tokens: 0, output_tokens: 0 } }, req.questions);
+      return { ...result, cached: false, latencyMs: Date.now() - t0, evidence };
+    }
     let x: Awaited<ReturnType<Llm["extractEvidence"]>>;
     try {
       x = await withTimeout(this.cfg.EVIDENCE_TIMEOUT_MS, (signal) => this.llm!.extractEvidence(input, signal));

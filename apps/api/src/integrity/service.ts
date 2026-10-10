@@ -5,6 +5,7 @@ import {
   fiveGramOverlap,
   longestSharedRun,
   words,
+  type CopyAnalysis,
   type DetailValue,
   type IntegrityAssessment,
   type IntegrityEvent,
@@ -192,7 +193,7 @@ export class IntegrityService {
   }
 
   /** The integrity assessment for an attempt, from stored facts only (deterministic, re-runnable). */
-  assess(i: { sessionId: string; seeded: boolean; wordCount: number; answerOverlap5: number }): { assessment: IntegrityAssessment; events: IntegrityEvent[] } {
+  assess(i: { sessionId: string; seeded: boolean; wordCount: number; copy: CopyAnalysis | null }): { assessment: IntegrityAssessment; events: IntegrityEvent[] } {
     const s = this.ctx.db.prepare("SELECT hiddenAt, submittedAt FROM sessions WHERE id = ?").get(i.sessionId) as {
       hiddenAt: number | null;
       submittedAt: number | null;
@@ -210,7 +211,7 @@ export class IntegrityService {
       }),
     );
     const writingMs = s.hiddenAt !== null && s.submittedAt !== null ? Math.max(0, s.submittedAt - s.hiddenAt) : null;
-    const assessment = assessIntegrity({ events, seeded: i.seeded, wordCount: i.wordCount, writingMs, answerOverlap5: i.answerOverlap5, clients });
+    const assessment = assessIntegrity({ events, seeded: i.seeded, wordCount: i.wordCount, writingMs, copy: i.copy, clients });
     return { assessment, events };
   }
 }

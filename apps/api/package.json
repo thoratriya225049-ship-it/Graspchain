@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:smoke": "vitest run test/smoke.test.ts",
     "migrate": "tsx scripts/migrate.ts",
+    "roster": "tsx scripts/roster.ts",
     "seed": "tsx scripts/seed.ts",
     "backup": "tsx scripts/backup.ts",
     "benchmark": "tsx scripts/benchmark.ts",

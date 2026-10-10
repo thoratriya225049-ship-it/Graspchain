@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { CopyAnalysis } from "./copy";
 
 /**
  * ASSESSMENT INTEGRITY — what the assessment conditions were, kept separate from what the
@@ -162,7 +163,7 @@ export const FINDING_COPY: Record<string, string> = {
   REPEATED_FOCUS_LOSS: "Repeatedly left the assessment",
   REPEATED_COPY_ATTEMPTS: "Repeated copy attempts",
   IMPLAUSIBLE_TYPING_SPEED: "Implausible writing speed",
-  VERBATIM_SOURCE_TEXT: "Answer copies the article word for word",
+  COPIED_SOURCE_TEXT: "Article text copied word for word",
   MONITORING_ABSENT: "No monitoring from the assessment page",
   SEEDED_DEMO: "Seeded demo answer",
 };
@@ -294,14 +295,13 @@ export interface IntegrityInput {
   wordCount: number;
   /** From the article closing to the submission (server clock), or null if unknown. */
   writingMs: number | null;
-  /** 5-gram overlap of the answer with the article (0–1). */
-  answerOverlap5: number;
+  /** Deterministic copy detection of the answer against the article (null: not run). */
+  copy: Pick<CopyAnalysis, "ratio" | "copiedWords" | "totalWords" | "longestRun" | "level" | "policy"> | null;
   /** Per browser instance: the highest sequence number it announced and the ones that arrived. */
   clients: { clientId: string; lastSeqReported: number; receivedSeqs: number[] }[];
 }
 
 export const TYPING = { minWords: 40, mediumWpm: 90, highWpm: 150 };
-export const VERBATIM = { low: 0.3, medium: 0.5 };
 
 export function statusFor(points: number, anyCritical: boolean): IntegrityStatus {
   if (anyCritical) return "COMPROMISED";
@@ -365,18 +365,14 @@ export function assessIntegrity(input: IntegrityInput): IntegrityAssessment {
       );
   }
 
-  if (input.answerOverlap5 >= VERBATIM.medium)
-    findings.push(
-      derived(
-        "VERBATIM_SOURCE_TEXT",
-        "MEDIUM",
-        `${Math.round(input.answerOverlap5 * 100)}% of the answer's five-word sequences are copied from the article word for word.`,
-      ),
-    );
-  else if (input.answerOverlap5 >= VERBATIM.low)
-    findings.push(
-      derived("VERBATIM_SOURCE_TEXT", "LOW", `${Math.round(input.answerOverlap5 * 100)}% of the answer's five-word sequences match the article word for word.`),
-    );
+  // Copying is judged on the answer itself, so it applies to every attempt, monitored or not.
+  const c = input.copy;
+  if (c && c.level !== "none") {
+    const what = `${Math.round(c.ratio * 100)}% of the answer (${c.copiedWords} of ${c.totalWords} words) is copied word for word from the article, in runs of ${c.policy.minRun}+ identical words (longest: ${c.longestRun}).`;
+    if (c.level === "violation") findings.push(derived("COPIED_SOURCE_TEXT", "CRITICAL", `Significant source text copied: ${what}`));
+    else if (c.level === "review") findings.push(derived("COPIED_SOURCE_TEXT", "HIGH", `Part of the answer is copied: ${what}`));
+    else findings.push(derived("COPIED_SOURCE_TEXT", "LOW", `A short passage is copied: ${what}`));
+  }
 
   const monitored = input.events.some((e) => e.type === "MONITOR_START" && e.source === "client");
   if (input.seeded)
