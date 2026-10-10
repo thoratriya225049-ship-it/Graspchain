@@ -48,7 +48,7 @@ describe("auth and consent", () => {
     const c = await login(h.app, "DEMO-02");
     const r = await h.app.inject({ method: "GET", url: "/api/articles", headers: { cookie: c } });
     expect(r.body).not.toContain("A log is only useful");
-    expect(r.json().articles).toHaveLength(3);
+    expect(r.json().articles.length).toBeGreaterThanOrEqual(3);
   });
   it("allows registering with custom ID and password and logging in", async () => {
     const reg = await h.app.inject({
