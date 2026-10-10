@@ -67,6 +67,8 @@ export function SessionFlow({
   const [fullscreen, setFullscreen] = useState(false);
   const [fullscreenSupported, setFullscreenSupported] = useState(false);
   const [windowActive, setWindowActive] = useState(true);
+  const [screenshotMask, setScreenshotMask] = useState(false);
+  const screenshotTimer = useRef<number | null>(null);
 
   const [answer, setAnswer] = useState("");
   const [touched, setTouched] = useState(false);
@@ -158,6 +160,11 @@ export function SessionFlow({
       setNotices((xs) => [...xs.slice(-2), n]);
       window.setTimeout(() => setNotices((xs) => xs.filter((x) => x.id !== n.id)), 7000);
     };
+    monitor.onScreenshotAttempt = () => {
+      setScreenshotMask(true);
+      if (screenshotTimer.current) window.clearTimeout(screenshotTimer.current);
+      screenshotTimer.current = window.setTimeout(() => setScreenshotMask(false), 3500);
+    };
     monitor.onFullscreenChange = setFullscreen;
     monitor.onActiveChange = setWindowActive;
     setFullscreenSupported(!!document.fullscreenEnabled);
@@ -168,6 +175,7 @@ export function SessionFlow({
     const onShow = (e: PageTransitionEvent) => e.persisted && window.location.reload();
     window.addEventListener("pageshow", onShow);
     return () => {
+      if (screenshotTimer.current) window.clearTimeout(screenshotTimer.current);
       window.removeEventListener("pageshow", onShow);
       monitor.detach();
     };
@@ -344,15 +352,46 @@ export function SessionFlow({
             <p className="eyebrow">Read carefully · it won&rsquo;t come back</p>
             <h1 className="mt-4 font-serif text-2xl leading-[1.1] md:text-[2.625rem]">{article.title}</h1>
             <p className="mt-3 text-sm text-ink-3">{article.wordCount} words</p>
-            <div className={`prose-article mt-10 transition-[filter] duration-150 ${windowActive ? "" : "blur-md"}`}>
+            <div
+              className={`prose-article mt-10 transition-[filter,opacity] duration-150 ${
+                !windowActive || (fullscreenSupported && !fullscreen) || screenshotMask
+                  ? "blur-2xl opacity-10 select-none pointer-events-none"
+                  : ""
+              }`}
+            >
               {paragraphs.map((p, i) => (
                 <p key={i}>{p}</p>
               ))}
             </div>
             <Watermark text={`${studentCode} · ${sessionId.slice(0, 8)}`} />
-            {!windowActive && phase === "reading" ? (
+            {screenshotMask && phase === "reading" ? (
+              <div className="absolute inset-0 z-30 flex items-center justify-center bg-paper/90 backdrop-blur-xl p-6" role="alert">
+                <div className="max-w-md border-2 border-bad bg-paper-raised p-6 shadow-doc text-center">
+                  <p className="eyebrow text-bad">Security notice</p>
+                  <h2 className="mt-2 font-serif text-xl font-medium text-bad">Screenshot blocked</h2>
+                  <p className="mt-2 text-sm text-ink-2">
+                    Screen capture shortcuts are prohibited while reading. The article is temporarily concealed and this attempt has been recorded in your integrity record.
+                  </p>
+                </div>
+              </div>
+            ) : null}
+            {fullscreenSupported && !fullscreen && phase === "reading" && !screenshotMask ? (
+              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-paper/90 backdrop-blur-md p-6 text-center" role="alert">
+                <div className="max-w-md border border-ink bg-paper-raised p-6 shadow-doc">
+                  <p className="eyebrow text-signal-ink">Assessment Mode</p>
+                  <h2 className="mt-2 font-serif text-xl font-medium text-ink">Full screen required to read</h2>
+                  <p className="mt-2 text-sm text-ink-2">
+                    The article cannot be viewed in windowed mode. Leaving full screen is recorded on your integrity receipt. Return to full screen to continue reading.
+                  </p>
+                  <Button size="md" variant="primary" className="mt-5 w-full" onClick={() => void requestFullscreen()}>
+                    Return to full screen
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+            {!windowActive && fullscreen && phase === "reading" && !screenshotMask ? (
               <div className="absolute inset-0 z-10 flex items-start justify-center bg-paper/70 pt-40" role="status">
-                <p className="max-w-sm border-l-2 border-warn-mark bg-paper px-4 py-2 text-sm text-ink-2">
+                <p className="max-w-sm border-l-2 border-warn-mark bg-paper px-4 py-2 text-sm text-ink-2 shadow-doc">
                   The article is hidden while this window is not active. Click here to continue — the clock keeps running.
                 </p>
               </div>
@@ -479,9 +518,9 @@ export function SessionFlow({
 function Watermark({ text }: { text: string }) {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 z-[1] overflow-hidden select-none">
-      <div className="absolute -inset-1/4 flex rotate-[-24deg] flex-wrap content-start gap-x-16 gap-y-20 opacity-[0.06]">
-        {Array.from({ length: 60 }, (_, i) => (
-          <span key={i} className="mono whitespace-nowrap text-sm text-ink">
+      <div className="absolute -inset-1/4 flex rotate-[-24deg] flex-wrap content-start gap-x-12 gap-y-16 opacity-[0.11]">
+        {Array.from({ length: 72 }, (_, i) => (
+          <span key={i} className="mono whitespace-nowrap text-xs font-semibold text-ink">
             {text}
           </span>
         ))}

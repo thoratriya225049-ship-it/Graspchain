@@ -61,6 +61,7 @@ export class IntegrityMonitor {
   private hiddenDuringBlur = false;
   private lastPrintShortcut = 0;
   private lastScreenshotKey = 0;
+  private fullscreenExitAt: number | null = null;
   private clockBase = 0;
   private internalClips: string[] = [];
   private noticeId = 0;
@@ -69,6 +70,7 @@ export class IntegrityMonitor {
   onNotice: ((n: MonitorNotice) => void) | null = null;
   onFullscreenChange: ((active: boolean) => void) | null = null;
   onActiveChange: ((active: boolean) => void) | null = null;
+  onScreenshotAttempt: (() => void) | null = null;
 
   constructor(private sessionId: string) {
     this.storeKey = `gc-integrity-${sessionId}`;
@@ -130,7 +132,15 @@ export class IntegrityMonitor {
     on(document, "fullscreenchange", () => {
       const active = !!document.fullscreenElement;
       this.onFullscreenChange?.(active);
-      if (!active) this.record("FULLSCREEN_EXIT", {});
+      if (!active) {
+        this.fullscreenExitAt = Date.now();
+        this.record("FULLSCREEN_EXIT", {});
+        this.notify("Full screen exited. Return to full screen to view the article.", "warn");
+      } else if (this.fullscreenExitAt !== null) {
+        const exitMs = Date.now() - this.fullscreenExitAt;
+        this.fullscreenExitAt = null;
+        this.record("FULLSCREEN_EXIT", { exitMs, returned: true });
+      }
     });
 
     // Clipboard: the article can never be copied; while writing, the student may move their own
@@ -162,8 +172,22 @@ export class IntegrityMonitor {
 
     on(window, "keydown", (e) => this.onKey(e as KeyboardEvent));
     on(window, "keyup", (e) => {
-      const k = e as KeyboardEvent;
-      if (k.key === "PrintScreen" || k.code === "PrintScreen") this.screenshotKey("PrintScreen");
+      const ev = e as KeyboardEvent;
+      const k = ev.key;
+      const c = ev.code;
+      if (
+        k === "PrintScreen" ||
+        c === "PrintScreen" ||
+        ((ev.metaKey || ev.ctrlKey) && ev.shiftKey && (k.toLowerCase() === "s" || c === "KeyS"))
+      ) {
+        this.onScreenshotAttempt?.();
+        this.screenshotKey("PrintScreen");
+        try {
+          if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+            void navigator.clipboard.writeText("");
+          }
+        } catch {}
+      }
     });
     on(window, "beforeprint", () => {
       if (Date.now() - this.lastPrintShortcut > 1500) this.record("PRINT_ATTEMPT", { via: "menu" });
@@ -250,6 +274,20 @@ export class IntegrityMonitor {
       e.preventDefault(); // browsers may still open them; the attempt is what is recorded
       this.record("DEVTOOLS_SHORTCUT", { key: combo(e) });
       this.notify("Developer tools are not allowed during the assessment. The attempt is recorded.", "bad");
+    } else if (
+      e.key === "PrintScreen" ||
+      e.code === "PrintScreen" ||
+      ((e.metaKey || e.ctrlKey) && e.shiftKey && (k === "s" || e.code === "KeyS")) ||
+      (e.metaKey && e.shiftKey && ["3", "4", "5", "6"].includes(k))
+    ) {
+      e.preventDefault();
+      this.onScreenshotAttempt?.();
+      this.screenshotKey(combo(e));
+      try {
+        if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+          void navigator.clipboard.writeText("");
+        }
+      } catch {}
     } else if (mod && k === "s") {
       e.preventDefault();
       this.record("CAPTURE_SHORTCUT", { action: "save" });
@@ -258,16 +296,15 @@ export class IntegrityMonitor {
       this.lastPrintShortcut = Date.now();
       this.record("PRINT_ATTEMPT", { via: "shortcut" });
       this.notify("Printing is disabled during the assessment. The attempt is recorded.", "warn");
-    } else if (e.key === "PrintScreen" || (e.metaKey && e.shiftKey && ["3", "4", "5"].includes(e.key))) {
-      this.screenshotKey(combo(e));
     }
   }
 
   private screenshotKey(key: string) {
     if (Date.now() - this.lastScreenshotKey < 1000) return;
     this.lastScreenshotKey = Date.now();
+    this.onScreenshotAttempt?.();
     this.record("SCREENSHOT_KEY", { key });
-    this.notify("A screenshot key was pressed. This is recorded.", this.phase === "reading" ? "bad" : "warn");
+    this.notify("A screenshot key was pressed. The article was concealed and this attempt is recorded.", this.phase === "reading" ? "bad" : "warn");
   }
 
   private notify(message: string, tone: MonitorNotice["tone"]) {

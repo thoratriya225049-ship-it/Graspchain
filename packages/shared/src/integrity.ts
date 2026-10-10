@@ -166,6 +166,7 @@ export const FINDING_COPY: Record<string, string> = {
   COPIED_SOURCE_TEXT: "Article text copied word for word",
   MONITORING_ABSENT: "No monitoring from the assessment page",
   SEEDED_DEMO: "Seeded demo answer",
+  REPEATED_FULLSCREEN_EXIT: "Repeatedly left full screen",
 };
 
 export const findingTitle = (code: string) => (EVENT_COPY as Record<string, string>)[code] ?? FINDING_COPY[code] ?? code.replace(/_/g, " ").toLowerCase();
@@ -219,8 +220,17 @@ export function classifyEvent(e: Pick<IntegrityEvent, "type" | "phase" | "detail
             ? { severity: "LOW", reason: `Another window had focus for ${secs(ms)}.` }
             : { severity: "INFO", reason: "Focus left for under 2 s (e.g. the address bar or a notification)." };
     }
-    case "FULLSCREEN_EXIT":
+    case "FULLSCREEN_EXIT": {
+      const ms = num(d.exitMs);
+      if (ms !== null && reading) {
+        return ms >= 45_000
+          ? { severity: "HIGH", reason: `Out of full screen while reading for ${secs(ms)}.` }
+          : ms >= 15_000
+            ? { severity: "MEDIUM", reason: `Out of full screen while reading for ${secs(ms)}.` }
+            : { severity: "LOW", reason: `Left full screen for ${secs(ms)}.` };
+      }
       return { severity: "LOW", reason: "Left full screen (Esc is easy to press by accident)." };
+    }
     case "MULTIPLE_TAB":
       return { severity: "MEDIUM", reason: "The same session was open in two tabs or windows at once." };
     case "REFRESH":
@@ -341,6 +351,12 @@ export function assessIntegrity(input: IntegrityInput): IntegrityAssessment {
     findings.push(derived("REPEATED_FOCUS_LOSS", "HIGH", `Left the assessment ${focusLosses} times. Repeated absences add up even when each is short.`));
   else if (focusLosses >= 5)
     findings.push(derived("REPEATED_FOCUS_LOSS", "MEDIUM", `Left the assessment ${focusLosses} times. Repeated absences add up even when each is short.`));
+
+  const fullscreenExits = input.events.filter((e) => e.type === "FULLSCREEN_EXIT" && atLeastLow(e)).length;
+  if (fullscreenExits >= 8)
+    findings.push(derived("REPEATED_FULLSCREEN_EXIT", "HIGH", `Left full screen ${fullscreenExits} times. Controlled assessment environment was not maintained.`));
+  else if (fullscreenExits >= 5)
+    findings.push(derived("REPEATED_FULLSCREEN_EXIT", "MEDIUM", `Left full screen ${fullscreenExits} times.`));
 
   const copies = input.events.filter((e) => e.type === "COPY_ATTEMPT" && e.phase === "reading").length;
   if (copies >= 3) findings.push(derived("REPEATED_COPY_ATTEMPTS", "MEDIUM", `Tried to copy article text ${copies} times.`));

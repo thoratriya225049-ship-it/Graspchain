@@ -51,6 +51,18 @@ describe("integrity: fair, explainable, evidence-based", () => {
     expect(a.outcome).toBe("CERTIFIED_WITH_NOTES");
   });
 
+  it("weighs fullscreen exit duration: leaving full screen for 45s while reading is HIGH severity", () => {
+    expect(classifyEvent(ev("FULLSCREEN_EXIT", { exitMs: 45_000 }, "reading")).severity).toBe("HIGH");
+    expect(classifyEvent(ev("FULLSCREEN_EXIT", { exitMs: 15_000 }, "reading")).severity).toBe("MEDIUM");
+    const a = assessIntegrity(input([ev("FULLSCREEN_EXIT", { exitMs: 45_000 }, "reading")]));
+    expect(a).toMatchObject({ status: "INTEGRITY_RISK", outcome: "REVIEW_REQUIRED" });
+  });
+
+  it("repeated fullscreen exits accumulate into a derived finding", () => {
+    const a = assessIntegrity(input(Array.from({ length: 6 }, () => ev("FULLSCREEN_EXIT", {}, "reading"))));
+    expect(a.findings.find((f) => f.code === "REPEATED_FULLSCREEN_EXIT")?.severity).toBe("MEDIUM");
+  });
+
   it("weighs duration: a 90-second absence while writing needs review", () => {
     expect(classifyEvent(ev("TAB_SWITCH", { hiddenMs: 90_000 })).severity).toBe("HIGH");
     const a = assessIntegrity(input([ev("TAB_SWITCH", { hiddenMs: 90_000 })]));
