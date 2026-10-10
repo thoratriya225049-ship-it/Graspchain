@@ -15,7 +15,9 @@ export function SystemRail({ config }: { config: PublicConfig | null }) {
   const items: { k: string; v: string; warn?: boolean }[] = [
     config.judge.kind === "jev"
       ? { k: "Judge", v: `Jev ${config.judge.model}` }
-      : { k: "Judge", v: `${config.judge.model} · local demo stand-in, not Jev`, warn: true },
+      : config.judge.kind === "evidence"
+        ? { k: "Judge", v: `${config.judge.model} · LLM extracts evidence, rules decide` }
+        : { k: "Judge", v: `${config.judge.model} · local demo stand-in, not Jev`, warn: true },
     config.llm.enabled
       ? { k: "LLM", v: `${config.llm.provider}/${config.llm.model}` }
       : { k: "LLM", v: "off · sentence split + template feedback", warn: true },

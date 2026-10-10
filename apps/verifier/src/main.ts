@@ -116,6 +116,10 @@ async function verify(raw: string, source: string) {
   $("hash").textContent = hash;
   $("score").textContent = receipt.assessment.finalScore.toFixed(1);
   $("models").textContent = `${receipt.assessment.models.jev} · ${receipt.assessment.models.llm}`;
+  const integ = receipt.assessment.integrity;
+  $("integrity").textContent = integ
+    ? `${integ.status} · ${integ.outcome}${receipt.assessment.review?.integrityDecision ? ` · teacher ${receipt.assessment.review.integrityDecision}` : ""} (${integ.rulesVersion})`
+    : "not recorded (older receipt)";
   $("article").textContent = `${receipt.articleId} · attempt ${receipt.attemptNo}`;
   $("created").textContent = new Date(receipt.createdAt).toLocaleString();
   $("canonical").textContent = canonical;

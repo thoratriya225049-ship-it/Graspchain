@@ -9,7 +9,7 @@ test("an answer that instructs the grader is flagged, reviewed and corrected wit
   const student = await browser.newContext(as("DEMO-04"));
   const sp = await student.newPage();
   const attemptId = await takeAssessment(sp, "A1", INJECTION_A1);
-  await expect(sp.getByText("Contains instructions to the grader")).toBeVisible({ timeout: 20_000 });
+  await expect(sp.getByText("Contains instructions to the grader")).toBeVisible({ timeout: 60_000 });
   const score = Number((await sp.getByLabel(/^Score .* out of 10$/).textContent())?.trim());
   expect(score).toBeLessThan(8); // the instruction does not lift the score (PRD E4b)
   await expect(sp.getByText("Recorded on-chain")).toBeVisible({ timeout: 30_000 });

@@ -38,7 +38,7 @@ const Schema = z
     ADMIN_DEMO_TOOLS: bool.default(false),
     DEMO_MODE: z.enum(["off", "replay"]).default("off"),
 
-    JUDGE: z.enum(["jev", "local"]).default("jev"),
+    JUDGE: z.enum(["evidence", "jev", "local"]).default("evidence"),
     JEV_BASE_URL: z.string().url().default("https://api.typesafe.ai"),
     JEV_API_KEY: optStr,
     JEV_MODEL: z.string().default("jev-1.13.0"),
@@ -51,6 +51,9 @@ const Schema = z
     GOOGLE_GENERATIVE_AI_API_KEY: optStr,
     GROQ_API_KEY: optStr,
     SEGMENT_TIMEOUT_MS: z.coerce.number().int().positive().default(1800),
+    /** Evidence judge: model id for extraction (defaults to LLM_MODEL) and its hard timeout. */
+    EVIDENCE_MODEL: optStr,
+    EVIDENCE_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
     FEEDBACK_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
 
     CLOCK_MODE: z.enum(["fair", "naive"]).default("fair"),
@@ -81,6 +84,14 @@ const Schema = z
         code: "custom",
         path: ["JEV_API_KEY"],
         message: "JEV_API_KEY is required when JUDGE=jev (or set DEMO_MODE=replay to serve cached answers, or JUDGE=local for the labelled local demo judge)",
+      });
+    }
+    if (c.JUDGE === "evidence" && (c.LLM_PROVIDER === "none" || !c.LLM_MODEL)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["JUDGE"],
+        message:
+          "JUDGE=evidence needs an LLM for evidence extraction: set LLM_PROVIDER (groq or google), LLM_MODEL and its API key (or JUDGE=local for the labelled local demo judge)",
       });
     }
     if (c.LLM_PROVIDER === "google" && c.LLM_MODEL && !c.GOOGLE_GENERATIVE_AI_API_KEY && c.DEMO_MODE !== "replay") {

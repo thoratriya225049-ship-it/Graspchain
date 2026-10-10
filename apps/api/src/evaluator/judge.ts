@@ -1,5 +1,15 @@
 import { APIError, TypeSafeClient } from "@typesafe-ai/sdk";
-import { estimateTokens, validateJudgeResult, type Article, type JevQuestions, type JevState, type JudgeResult } from "@graspchain/shared";
+import {
+  estimateTokens,
+  validateJudgeResult,
+  type Article,
+  type Claim,
+  type EvidenceDecision,
+  type JevQuestions,
+  type JevState,
+  type JudgeKind,
+  type JudgeResult,
+} from "@graspchain/shared";
 import type { Config } from "../config";
 import { AppError } from "../errors";
 import { ApiCache, Usage, cacheKey } from "./cache";
@@ -8,6 +18,8 @@ export interface JudgeRequest {
   article: Article;
   state: JevState;
   questions: JevQuestions;
+  /** The validated claims (the evidence judge needs their spans). */
+  claims?: Claim[];
   /** "bypass" skips the cache read (benchmark repeatability runs). */
   cache?: "use" | "bypass";
 }
@@ -15,11 +27,13 @@ export interface JudgeRequest {
 export interface JudgeCall extends JudgeResult {
   cached: boolean;
   latencyMs: number;
+  /** Evidence judge only: the validated evidence and the rules that fired. */
+  evidence?: EvidenceDecision;
 }
 
 /** Stage 2 judge. `kind` is written into every receipt so a demo judgment can never pass as Jev. */
 export interface Judge {
-  kind: "jev" | "local";
+  kind: JudgeKind;
   model: string;
   systemOne(req: JudgeRequest): Promise<JudgeCall>;
 }

@@ -1,4 +1,6 @@
 import type {
+  IntegrityAssessment,
+  Severity,
   ArticleSummary,
   CheckState,
   ChainView,
@@ -28,7 +30,7 @@ export interface Me {
 export interface PublicConfig {
   appName: string;
   environment: string;
-  judge: { kind: "jev" | "local"; model: string };
+  judge: { kind: "jev" | "local" | "evidence"; model: string };
   llm: { enabled: boolean; provider: string | null; model: string | null };
   demoMode: "off" | "replay";
   adminDemoTools: boolean;
@@ -70,6 +72,8 @@ export interface AttemptListItem {
   lowConfidence: boolean;
   chainStatus: string | null;
   assessmentId: string | null;
+  integrityStatus?: string | null;
+  integrityOutcome?: string | null;
 }
 
 export interface Profile {
@@ -116,6 +120,9 @@ export interface Result extends ResultPayload {
   delta: { previousAttemptId: string; finalScore: number; dimensions: Record<string, number> } | null;
   lineage: LineageItem[];
   originalAssessmentId: string | null;
+  /** Assessment conditions, with any teacher decision applied. */
+  integrity?: IntegrityAssessment | null;
+  integrityEvents?: TimelineEvent[];
 }
 
 export interface Verification {
@@ -177,3 +184,13 @@ export interface ArticlesResponse {
 }
 
 export type { ChainView };
+
+/** One recorded integrity event with its published severity (GET /api/result/:id). */
+export interface TimelineEvent {
+  type: string;
+  source: "client" | "server";
+  phase: string;
+  at: number;
+  severity: Severity;
+  reason: string;
+}

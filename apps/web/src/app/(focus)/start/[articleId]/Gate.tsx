@@ -7,6 +7,7 @@ import type { ArticleSummary } from "@graspchain/shared";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Bits";
 import { call, store } from "@/lib/http";
+import { requestFullscreen } from "@/lib/integrity";
 import type { SessionView, TicketView } from "@/lib/types";
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.max(0, Math.round(s)) % 60).padStart(2, "0")}`;
@@ -14,7 +15,7 @@ const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.max(0, Math.rou
 type Phase = { k: "brief" } | { k: "queue"; t: TicketView } | { k: "starting" } | { k: "expired" } | { k: "error"; message: string };
 
 /** S3: brief → FairGate ticket → admission → session. Under no load, admission is near-instant. */
-export function Gate({ article, capS, windowS }: { article: ArticleSummary; capS: number; windowS: number }) {
+export function Gate({ article, capS, windowS, active }: { article: ArticleSummary; capS: number; windowS: number; active: SessionView | null }) {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>({ k: "brief" });
   const [busy, setBusy] = useState(false);
@@ -78,6 +79,8 @@ export function Gate({ article, capS, windowS }: { article: ArticleSummary; capS
   }, []);
 
   async function join() {
+    // Full screen needs this click (a user gesture); declining or an unsupported browser is fine.
+    void requestFullscreen();
     setBusy(true);
     const r = await call<TicketView & { details?: { ticketId: string } }>("/api/queue/join", { method: "POST", json: { articleId: article.id } });
     setBusy(false);
@@ -108,8 +111,12 @@ export function Gate({ article, capS, windowS }: { article: ArticleSummary; capS
               `You have ${mmss(article.readSeconds)} with the article (${article.wordCount} words). The clock starts when it has arrived on your screen.`,
             ],
             ["It closes", "When time is up — or when you say you are done — the article is removed. The server refuses to send it again."],
-            ["Explain", "Write what it is about and why it matters, in your own words: 30 to 300 words."],
-            ["See exactly why", "A score in about two seconds, then feedback, then an X-Ray of the article showing what you understood, missed and got wrong."],
+            ["Explain", "Write what it is about and why it matters, in your own words: 30 to 300 words. Copying and pasting are disabled."],
+            [
+              "Stay with it",
+              "The assessment asks for full screen. Leaving the tab or window, and similar events, are recorded and rated by published rules — one accident never invalidates a result.",
+            ],
+            ["See exactly why", "A score within seconds, then feedback, then an X-Ray of the article showing what you understood, missed and got wrong."],
           ].map(([h, b], i) => (
             <li key={h} className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-4 border-b border-rule py-5">
               <span className="mono pt-0.5 text-sm text-ink-3">0{i + 1}</span>
@@ -132,6 +139,17 @@ export function Gate({ article, capS, windowS }: { article: ArticleSummary; capS
             <p className="mt-3 max-w-sm text-[0.9375rem] text-ink-2">
               Find a quiet moment. Once the article opens, the clock runs on the server — refreshing does not give you more time.
             </p>
+            {active ? (
+              <div className="mt-6">
+                <Notice tone="warn" title="You have an assessment in progress">
+                  {active.articleId === article.id ? "This article" : `Article ${active.articleId}`} is still open ({active.state.toLowerCase()}). Starting now
+                  closes it for good.{" "}
+                  <Link href={`/session/${active.sessionId}`} className="link">
+                    Resume it instead
+                  </Link>
+                </Notice>
+              </div>
+            ) : null}
             {phase.k === "error" ? (
               <div className="mt-6">
                 <Notice tone="bad" title="Couldn't start">

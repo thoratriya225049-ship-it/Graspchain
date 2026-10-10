@@ -107,7 +107,10 @@ describe("submit → SSE → receipt → chain → verify", () => {
     expect(score.finalScore).toBeGreaterThanOrEqual(7);
     expect(score.judge).toMatchObject({ kind: "local", model: "local-rubric-judge@1" });
     expect(score.segmentation).toBe("sentence-fallback");
-    expect(score.flags).toMatchObject({ pasteCount: 1, blurCount: 2, injectionSuspected: false });
+    // The body claimed pasteCount 1 / blurCount 2: client-stated counts are ignored; only
+    // server-recorded integrity events count (none were reported here).
+    expect(score.flags).toMatchObject({ pasteCount: 0, blurCount: 0, injectionSuspected: false });
+    expect(score.integrity.findings.map((f: { code: string }) => f.code)).toContain("MONITORING_ABSENT");
     const fb = events.find((e) => e.type === "feedback" && e.data.final)!.data.final;
     expect(fb.source).toBe("template");
     const rec = events.find((e) => e.type === "record")!.data;

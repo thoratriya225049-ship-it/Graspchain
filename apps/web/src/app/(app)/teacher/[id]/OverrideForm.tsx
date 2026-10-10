@@ -7,13 +7,23 @@ import { Button } from "@/components/ui/Button";
 import { Field, Notice, inputClass } from "@/components/ui/Bits";
 import { call } from "@/lib/http";
 
-export function OverrideForm({ assessmentId, currentScore }: { assessmentId: string; currentScore: number }) {
+export function OverrideForm({
+  assessmentId,
+  currentScore,
+  integrityOutcome,
+}: {
+  assessmentId: string;
+  currentScore: number;
+  /** Set when the integrity record still needs a decision. */
+  integrityOutcome: string | null;
+}) {
   const router = useRouter();
   const [score, setScore] = useState(currentScore.toFixed(1));
+  const [decision, setDecision] = useState<"" | "CLEARED" | "UPHELD">("");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<{ assessmentId: string; previousScore: number; newScore: number } | null>(null);
+  const [done, setDone] = useState<{ assessmentId: string; previousScore: number; newScore: number; integrityDecision: string | null } | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -22,10 +32,15 @@ export function OverrideForm({ assessmentId, currentScore }: { assessmentId: str
     if (reason.trim().length < 10) return setError("Give a reason of at least 10 characters — it is recorded with the correction.");
     setBusy(true);
     setError(null);
-    const r = await call<{ assessmentId: string; previousScore: number; newScore: number }>(`/api/teacher/review/${assessmentId}`, {
-      method: "POST",
-      json: { newScore: n, reason: reason.trim() },
-    });
+    const changed = Math.round(n * 10) / 10 !== Math.round(currentScore * 10) / 10;
+    if (!changed && !decision) return setError("Change the score, choose an integrity decision, or both.");
+    const r = await call<{ assessmentId: string; previousScore: number; newScore: number; integrityDecision: string | null }>(
+      `/api/teacher/review/${assessmentId}`,
+      {
+        method: "POST",
+        json: { ...(changed ? { newScore: n } : {}), ...(decision ? { integrityDecision: decision } : {}), reason: reason.trim() },
+      },
+    );
     setBusy(false);
     if (!r.ok) return setError(r.error!.message);
     setDone(r.data);
@@ -35,7 +50,10 @@ export function OverrideForm({ assessmentId, currentScore }: { assessmentId: str
   if (done)
     return (
       <div className="mt-4">
-        <Notice tone="ok" title={`Correction recorded: ${done.previousScore.toFixed(1)} → ${done.newScore.toFixed(1)}`}>
+        <Notice
+          tone="ok"
+          title={`${done.previousScore === done.newScore ? "Integrity decision recorded" : `Correction recorded: ${done.previousScore.toFixed(1)} → ${done.newScore.toFixed(1)}`}${done.integrityDecision ? ` · integrity ${done.integrityDecision.toLowerCase()}` : ""}`}
+        >
           New assessment <span className="mono">{done.assessmentId.slice(0, 8)}</span> supersedes the original and is queued on-chain.{" "}
           <Link className="link" href={`/verify/${done.assessmentId}`}>
             Verify the lineage
@@ -61,6 +79,22 @@ export function OverrideForm({ assessmentId, currentScore }: { assessmentId: str
         </Field>
         <p className="pb-3 text-xs text-ink-3">The original stays on-chain and still verifies; the student sees both.</p>
       </div>
+      {integrityOutcome ? (
+        <fieldset className="space-y-2 text-sm">
+          <legend className="text-sm font-medium">Integrity decision (current outcome: {integrityOutcome.replace(/_/g, " ").toLowerCase()})</legend>
+          {[
+            ["", "No decision now"],
+            ["CLEARED", "Clear — the events have an innocent explanation; certify the result"],
+            ["UPHELD", "Uphold — the conditions were not trustworthy; the result is not certified"],
+          ].map(([v, label]) => (
+            <label key={v} className="flex items-start gap-2">
+              <input type="radio" name="integrity" value={v} checked={decision === v} onChange={() => setDecision(v as typeof decision)} className="mt-1" />
+              <span>{label}</span>
+            </label>
+          ))}
+          <p className="text-xs text-ink-3">The recorded events are never edited; the decision is a new, linked record.</p>
+        </fieldset>
+      ) : null}
       <Field label="Reason (shown to the student, written into the receipt)" htmlFor="rs">
         <textarea
           id="rs"

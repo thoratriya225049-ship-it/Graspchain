@@ -1,12 +1,18 @@
 import {
   articleText,
+  classifyEvent,
+  countsTowardProgress,
   recommend,
+  reviewedOutcome,
   retryDelta,
   wordCount,
   type ArticleSummary,
   type Dimensions,
   type EvalEvent,
   type FeedbackRecord,
+  type IntegrityAssessment,
+  type IntegrityEvent,
+  type IntegrityOutcome,
   type Receipt,
   type ResultPayload,
   type ScorePayload,
@@ -33,6 +39,30 @@ interface EvalRow {
   judgeKind: string;
   segmentation: string;
   feedbackSource: string | null;
+  integrity: string | null;
+}
+
+/**
+ * The integrity assessment as it stands now: the stored one, with a teacher's decision (made
+ * through a superseding receipt) applied to the outcome. Never edits the stored record.
+ */
+export function effectiveIntegrity(ctx: Ctx, attemptId: string, stored: IntegrityAssessment | null | undefined): IntegrityAssessment | null {
+  if (!stored) return null;
+  const rc = currentReceipt(ctx, attemptId);
+  const review = rc?.receipt.assessment.review;
+  if (!review?.integrityDecision) return stored;
+  return {
+    ...stored,
+    outcome: reviewedOutcome(stored, review.integrityDecision),
+    review: { decision: review.integrityDecision, reason: review.reason, at: review.at },
+  };
+}
+
+/** The recorded integrity events, each with its published severity and reason. */
+export function integrityTimeline(ctx: Ctx, attemptId: string) {
+  const ev = ctx.db.prepare("SELECT integrity FROM evaluations WHERE attemptId = ?").get(attemptId) as { integrity: string | null } | undefined;
+  const stored = parse<(IntegrityAssessment & { events?: IntegrityEvent[] }) | null>(ev?.integrity);
+  return (stored?.events ?? []).map((e) => ({ type: e.type, source: e.source, phase: e.phase, at: e.at, detail: e.detail, ...classifyEvent(e) }));
 }
 
 export function getAttempt(ctx: Ctx, id: string): AttemptRow {
@@ -94,6 +124,8 @@ export function resultPayload(ctx: Ctx, attemptId: string, u: User) {
   let score = ev ? parse<ScorePayload>(ev.scorePayload) : null;
   const review = rc && rc.current.assessmentId !== rc.original.assessmentId ? rc.receipt.assessment.review : null;
   if (score && rc && review) score = { ...score, finalScore: rc.receipt.assessment.finalScore };
+  const integrity = score ? effectiveIntegrity(ctx, attemptId, score.integrity) : null;
+  if (score) score = { ...score, integrity };
   const prev = ctx.db
     .prepare("SELECT id FROM attempts WHERE studentId = ? AND articleId = ? AND attemptNo = ? AND status = 'done'")
     .get(a.studentId, a.articleId, a.attemptNo - 1) as { id: string } | undefined;
@@ -137,6 +169,8 @@ export function resultPayload(ctx: Ctx, attemptId: string, u: User) {
       measuredDelayMs: session.measuredDelayMs,
     },
     review: review && !hidden ? { ...review, newScore: rc!.receipt.assessment.finalScore } : null,
+    integrity: hidden ? null : integrity,
+    integrityEvents: hidden || !ev ? [] : integrityTimeline(ctx, attemptId),
     delta:
       !hidden && score && prevEval && prevScore !== null
         ? {
@@ -195,18 +229,20 @@ interface AttemptListRow {
   dimensions: string | null;
   band: string | null;
   lowConfidence: number | null;
+  integrity: string | null;
 }
 
 export function attemptsOf(ctx: Ctx, studentId: string) {
   const rows = ctx.db
     .prepare(
-      `SELECT a.id, a.articleId, a.attemptNo, a.createdAt, a.status, a.seeded, e.finalScore, e.dimensions, e.band, e.lowConfidence
+      `SELECT a.id, a.articleId, a.attemptNo, a.createdAt, a.status, a.seeded, e.finalScore, e.dimensions, e.band, e.lowConfidence, e.integrity
        FROM attempts a LEFT JOIN evaluations e ON e.attemptId = a.id WHERE a.studentId = ? ORDER BY a.createdAt`,
     )
     .all(studentId) as AttemptListRow[];
   return rows.map((r) => {
     const rc = r.status === "done" ? currentReceipt(ctx, r.id) : null;
     const current = rc?.receipt.assessment.finalScore ?? r.finalScore;
+    const integrity = effectiveIntegrity(ctx, r.id, parse<IntegrityAssessment | null>(r.integrity));
     return {
       attemptId: r.id,
       articleId: r.articleId,
@@ -223,6 +259,8 @@ export function attemptsOf(ctx: Ctx, studentId: string) {
       lowConfidence: !!r.lowConfidence,
       chainStatus: rc?.current.chainStatus ?? null,
       assessmentId: rc?.current.assessmentId ?? null,
+      integrityStatus: integrity?.status ?? null,
+      integrityOutcome: (integrity?.outcome ?? null) as IntegrityOutcome | null,
     };
   });
 }
@@ -234,7 +272,9 @@ export function profileOf(ctx: Ctx, studentId: string, u: User) {
   if (!st) throw notFound("Profile");
   const hidden = hiddenFor(ctx, u);
   const all = attemptsOf(ctx, studentId);
-  const done = all.filter((a) => a.status === "done" && a.dimensions && a.finalScore !== null);
+  // Only certified results count toward progress: a score earned under compromised conditions
+  // is shown on its own result page, never folded into stats, best scores or recommendations.
+  const done = all.filter((a) => a.status === "done" && a.dimensions && a.finalScore !== null && countsTowardProgress(a.integrityOutcome));
   const arts = [...ctx.articles.values()];
   const rec = recommend(
     arts,
@@ -289,7 +329,7 @@ export function articleSummaries(ctx: Ctx, studentId: string | null): ArticleSum
   const hidden = s.researchMode;
   const atts = studentId ? attemptsOf(ctx, studentId) : [];
   return [...ctx.articles.values()].map((a) => {
-    const mine = atts.filter((x) => x.articleId === a.id && x.status === "done" && x.finalScore !== null);
+    const mine = atts.filter((x) => x.articleId === a.id && x.status === "done" && x.finalScore !== null && countsTowardProgress(x.integrityOutcome));
     return {
       id: a.id,
       title: a.title,

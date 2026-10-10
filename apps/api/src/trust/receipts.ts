@@ -9,6 +9,7 @@ import {
   sha256Hex,
   type Feedback,
   type Receipt,
+  type ReceiptIntegrity,
   type ScorePayload,
 } from "@graspchain/shared";
 import { nowIso, parse, type DB } from "../db";
@@ -26,6 +27,8 @@ export interface ReceiptInput {
   promptHash: string;
   models: { jev: string; llm: string };
   score: ScorePayload;
+  evidence?: Receipt["assessment"]["evidence"];
+  integrity?: ReceiptIntegrity;
   feedback: Feedback;
   fairness: Receipt["fairness"];
   createdAt: string;
@@ -55,6 +58,8 @@ export async function buildReceipt(i: ReceiptInput): Promise<Receipt> {
       flags: { injectionSuspected: i.score.flags.injectionSuspected, pasteCount: i.score.flags.pasteCount, blurCount: i.score.flags.blurCount },
       feedbackHash: await sha256Hex(canonicalize(i.feedback)),
       review: null,
+      ...(i.evidence ? { evidence: i.evidence } : {}),
+      ...(i.integrity ? { integrity: i.integrity } : {}),
     },
     fairness: i.fairness,
     createdAt: i.createdAt,

@@ -264,3 +264,25 @@
     border-radius: var(--radius-xs);
   }
 }
+
+/* ── Assessment integrity ─────────────────────────────────────────────────────
+   The article cannot be selected, dragged or long-pressed, and never prints. These are real
+   browser controls, not guarantees: a photo of the screen or a modified browser gets around
+   them, which is why attempts are recorded rather than assumed impossible. */
+.gc-protected {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.gc-print-note {
+  display: none;
+}
+@media print {
+  .gc-protected,
+  #answer {
+    display: none !important;
+  }
+  .gc-print-note {
+    display: block !important;
+  }
+}

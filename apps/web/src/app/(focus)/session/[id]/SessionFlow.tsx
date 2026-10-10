@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createSseParser, wordCount } from "@graspchain/shared";
+import { INTEGRITY_LIMITS, createSseParser, wordCount } from "@graspchain/shared";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Bits";
 import { call, newKey, store } from "@/lib/http";
+import { IntegrityMonitor, requestFullscreen, type MonitorNotice } from "@/lib/integrity";
 import type { SessionView } from "@/lib/types";
 
 interface ArticlePayload {
@@ -34,12 +35,14 @@ export function SessionFlow({
   demoTools,
   minWords,
   maxWords,
+  studentCode,
 }: {
   sessionId: string;
   initial: SessionView;
   demoTools: boolean;
   minWords: number;
   maxWords: number;
+  studentCode: string;
 }) {
   const router = useRouter();
   const ss = store("session");
@@ -55,19 +58,27 @@ export function SessionFlow({
   const [error, setError] = useState<string | null>(null);
   const offset = useRef(0); // server − client clock
   const closing = useRef(false);
-  const copies = useRef(0);
+
+  // Integrity monitor: one per page instance (the ref survives StrictMode's double effects).
+  const monitorRef = useRef<IntegrityMonitor | null>(null);
+  monitorRef.current ??= new IntegrityMonitor(sessionId);
+  const monitor = monitorRef.current;
+  const [notices, setNotices] = useState<MonitorNotice[]>([]);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [fullscreenSupported, setFullscreenSupported] = useState(false);
+  const [windowActive, setWindowActive] = useState(true);
 
   const [answer, setAnswer] = useState("");
-  const [pastes, setPastes] = useState(0);
-  const [blurs, setBlurs] = useState(0);
   const [touched, setTouched] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [samples, setSamples] = useState<{ label: string; text: string }[]>([]);
   const textRef = useRef<HTMLTextAreaElement>(null);
+  const internalPaste = useRef(false);
 
   const toWriting = useCallback(
     (message?: string) => {
       setArticle(null); // the text leaves React state and the DOM
+      monitorRef.current?.setPhase("writing");
       if (message) setNotice(message);
       const saved = ss.get(draftKey);
       if (saved) setAnswer(saved);
@@ -89,12 +100,19 @@ export function SessionFlow({
     [sessionId, toWriting],
   );
 
-  // Load: the server's state decides between reading and writing.
+  // Load: the server's *current* state decides between reading and writing. It is re-read here
+  // (not taken from possibly cached page props), so this page never asks for an article that has
+  // closed — any such request is recorded as an integrity event by the server.
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (initial.state === "EXPIRED") return setPhase("expired");
-      if (initial.state === "WRITING") return toWriting();
+      const fresh = await call<SessionView>(`/api/session/${sessionId}`);
+      const state = fresh.ok ? fresh.data.state : initial.state;
+      if (cancelled) return;
+      if (fresh.ok) setSession(fresh.data);
+      if ((state === "EVALUATING" || state === "DONE") && fresh.ok && fresh.data.attemptId) return router.replace(`/attempts/${fresh.data.attemptId}`);
+      if (state === "EXPIRED") return setPhase("expired");
+      if (state === "WRITING") return toWriting();
       const r = await call<ArticlePayload>(`/api/session/${sessionId}/article`);
       if (cancelled) return;
       if (r.status === 403) return toWriting("The reading period has ended, so the article is closed.");
@@ -128,37 +146,45 @@ export function SessionFlow({
   useEffect(() => {
     if (phase !== "reading") return;
     const i = window.setInterval(() => setNow(Date.now()), 200);
-    const onCopy = () => (copies.current += 1);
-    document.addEventListener("copy", onCopy);
-    return () => {
-      window.clearInterval(i);
-      document.removeEventListener("copy", onCopy);
-    };
+    return () => window.clearInterval(i);
   }, [phase]);
 
-  // Heartbeat: a closed tab stops pinging, so its FairGate slot is freed for the next student.
+  // Integrity monitoring for the whole page life. Its reports are also the heartbeat: a closed
+  // tab stops reporting, so its FairGate slot is freed for the next student.
+  const monitoring = phase !== "expired" && phase !== "error";
   useEffect(() => {
-    if (phase !== "reading" && phase !== "writing") return;
-    const beat = () => void call(`/api/session/${sessionId}/heartbeat`, { method: "POST" });
-    beat();
-    const i = window.setInterval(beat, 30_000);
-    return () => window.clearInterval(i);
-  }, [phase, sessionId]);
+    if (!monitoring) return;
+    monitor.onNotice = (n) => {
+      setNotices((xs) => [...xs.slice(-2), n]);
+      window.setTimeout(() => setNotices((xs) => xs.filter((x) => x.id !== n.id)), 7000);
+    };
+    monitor.onFullscreenChange = setFullscreen;
+    monitor.onActiveChange = setWindowActive;
+    setFullscreenSupported(!!document.fullscreenEnabled);
+    setFullscreen(!!document.fullscreenElement);
+    setWindowActive(document.visibilityState === "visible" && document.hasFocus());
+    monitor.attach(phase === "writing" || phase === "submitting" ? "writing" : "reading");
+    // A page restored from the back/forward cache re-checks the server before showing anything.
+    const onShow = (e: PageTransitionEvent) => e.persisted && window.location.reload();
+    window.addEventListener("pageshow", onShow);
+    return () => {
+      window.removeEventListener("pageshow", onShow);
+      monitor.detach();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [monitoring, monitor]);
 
   const remaining = session.readDeadline ? session.readDeadline - (now + offset.current) : null;
   useEffect(() => {
     if (phase === "reading" && acked && remaining !== null && remaining <= 0) void close(false);
   }, [phase, acked, remaining, close]);
 
-  // Writing: counters, draft persistence, sample answers on demo deployments.
+  // Writing: focus, sample answers on demo deployments.
   useEffect(() => {
     if (phase !== "writing") return;
-    const onBlur = () => setBlurs((b) => b + 1);
-    window.addEventListener("blur", onBlur);
     textRef.current?.focus();
     if (demoTools)
       void call<{ samples: { label: string; text: string }[] }>(`/api/session/${sessionId}/samples`).then((r) => r.ok && setSamples(r.data.samples));
-    return () => window.removeEventListener("blur", onBlur);
   }, [phase, demoTools, sessionId]);
 
   useEffect(() => {
@@ -183,13 +209,15 @@ export function SessionFlow({
     setSubmitError(null);
     const key = ss.get(idemKey) ?? newKey();
     ss.set(idemKey, key); // a refresh or double click re-sends the same key and re-attaches
+    await monitor.flushNow(); // integrity events up to this moment reach the server before the answer
     const ac = new AbortController();
     let attemptId: string | null = null;
     try {
       const res = await fetch(`/api/session/${sessionId}/submit`, {
         method: "POST",
         headers: { "content-type": "application/json", accept: "text/event-stream" },
-        body: JSON.stringify({ answer, idempotencyKey: key, pasteCount: pastes, blurCount: blurs, copyCount: copies.current }),
+        // No integrity counts here: the server counts only the events it recorded itself.
+        body: JSON.stringify({ answer, idempotencyKey: key }),
         signal: ac.signal,
       });
       if (!res.ok || !res.body) {
@@ -290,9 +318,16 @@ export function SessionFlow({
                   : "Fair clock · measuring delivery…"
                 : "Server clock only (comparison mode)"}
             </p>
-            <Button size="sm" variant="secondary" onClick={() => close(true)} disabled={phase === "closing"}>
-              I&rsquo;m done reading
-            </Button>
+            <div className="flex items-center gap-2">
+              {fullscreenSupported && !fullscreen ? (
+                <Button size="sm" variant="quiet" onClick={() => void requestFullscreen()}>
+                  Full screen
+                </Button>
+              ) : null}
+              <Button size="sm" variant="secondary" onClick={() => close(true)} disabled={phase === "closing"}>
+                I&rsquo;m done reading
+              </Button>
+            </div>
           </div>
           {low && phase === "reading" ? (
             <p className="frame pb-2 text-xs text-signal-ink" role="status">
@@ -302,26 +337,45 @@ export function SessionFlow({
         </div>
         {article ? (
           <article
-            className="frame-narrow pb-32 pt-12 md:pt-16"
+            className="gc-protected frame-narrow relative pb-32 pt-12 md:pt-16"
             style={phase === "closing" ? { animation: "article-out 600ms var(--ease-in-out) forwards" } : undefined}
             aria-label="Article"
           >
             <p className="eyebrow">Read carefully · it won&rsquo;t come back</p>
             <h1 className="mt-4 font-serif text-2xl leading-[1.1] md:text-[2.625rem]">{article.title}</h1>
             <p className="mt-3 text-sm text-ink-3">{article.wordCount} words</p>
-            <div className="prose-article mt-10">
+            <div className={`prose-article mt-10 transition-[filter] duration-150 ${windowActive ? "" : "blur-md"}`}>
               {paragraphs.map((p, i) => (
                 <p key={i}>{p}</p>
               ))}
             </div>
+            <Watermark text={`${studentCode} · ${sessionId.slice(0, 8)}`} />
+            {!windowActive && phase === "reading" ? (
+              <div className="absolute inset-0 z-10 flex items-start justify-center bg-paper/70 pt-40" role="status">
+                <p className="max-w-sm border-l-2 border-warn-mark bg-paper px-4 py-2 text-sm text-ink-2">
+                  The article is hidden while this window is not active. Click here to continue — the clock keeps running.
+                </p>
+              </div>
+            ) : null}
+            <MonitorNote />
           </article>
         ) : null}
+        <Notices notices={notices} />
       </div>
     );
 
   // Writing and submitting
   return (
     <div className="frame-narrow pb-24 pt-12 md:pt-16">
+      <Notices notices={notices} />
+      {fullscreenSupported && !fullscreen && phase === "writing" ? (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-l-2 border-rule-strong py-1 pl-4 text-sm text-ink-2">
+          <span>You are not in full screen. Leaving the window or tab while writing is recorded.</span>
+          <Button size="sm" variant="quiet" onClick={() => void requestFullscreen()}>
+            Return to full screen
+          </Button>
+        </div>
+      ) : null}
       {notice ? (
         <div className="mb-8">
           <Notice tone="ink">{notice}</Notice>
@@ -339,8 +393,22 @@ export function SessionFlow({
           id="answer"
           ref={textRef}
           value={answer}
-          onChange={(e) => setAnswer(e.target.value)}
-          onPaste={() => setPastes((p) => p + 1)}
+          onChange={(e) => {
+            const added = e.target.value.length - answer.length;
+            if (!internalPaste.current) monitor.inputDelta(added, (e.nativeEvent as InputEvent).inputType ?? null);
+            internalPaste.current = false;
+            setAnswer(e.target.value);
+          }}
+          onPaste={(e) => {
+            const text = e.clipboardData.getData("text/plain");
+            if (monitor.pasteAttempt(text, "paste")) internalPaste.current = true;
+            else e.preventDefault();
+          }}
+          onDrop={(e) => {
+            const text = e.dataTransfer.getData("text/plain");
+            if (monitor.pasteAttempt(text, "drop")) internalPaste.current = true;
+            else e.preventDefault();
+          }}
           disabled={phase === "submitting"}
           rows={12}
           aria-invalid={touched && !!wordError}
@@ -366,7 +434,8 @@ export function SessionFlow({
 
       <div className="mt-8 flex flex-wrap items-center justify-between gap-6">
         <p className="max-w-sm text-xs text-ink-3">
-          Pasting and switching away are counted and shown to your teacher as neutral notes. They never change your score.
+          Pasting is disabled. Leaving the tab or window, clipboard use and similar events are recorded. They never change your comprehension score, but long or
+          repeated absences can mean a teacher must review your result before it counts.
         </p>
         <Button size="lg" onClick={submit} busy={phase === "submitting"} disabled={!!wordError && touched} iconAfter="arrow">
           Submit for assessment
@@ -378,7 +447,15 @@ export function SessionFlow({
           <summary className="cursor-pointer text-sm text-ink-3">Demo helper · insert a prepared answer (demo deployments only)</summary>
           <div className="mt-4 flex flex-wrap gap-3">
             {samples.map((s) => (
-              <Button key={s.label} variant="secondary" size="sm" onClick={() => setAnswer(s.text)}>
+              <Button
+                key={s.label}
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  monitor.record("BULK_INSERT", { chars: s.text.length, inputType: "demo-sample" });
+                  setAnswer(s.text);
+                }}
+              >
                 {s.label}
               </Button>
             ))}
@@ -388,9 +465,64 @@ export function SessionFlow({
       <p className="mt-10 text-sm">
         <Link href="/home" className="link text-ink-3">
           Save draft and leave
-        </Link>
+        </Link>{" "}
+        <span className="text-xs text-ink-3">· the time you are away is recorded</span>
       </p>
+      <div className="mt-8">
+        <MonitorNote />
+      </div>
     </div>
+  );
+}
+
+/** Faint, repeated identity mark over the article: a screenshot or photo stays attributable. */
+function Watermark({ text }: { text: string }) {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 z-[1] overflow-hidden select-none">
+      <div className="absolute -inset-1/4 flex rotate-[-24deg] flex-wrap content-start gap-x-16 gap-y-20 opacity-[0.06]">
+        {Array.from({ length: 60 }, (_, i) => (
+          <span key={i} className="mono whitespace-nowrap text-sm text-ink">
+            {text}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Notices({ notices }: { notices: MonitorNotice[] }) {
+  return (
+    <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex flex-col items-center gap-2 px-4">
+      {notices.map((n) => (
+        <p
+          key={n.id}
+          className={`max-w-md border-l-2 bg-paper-raised px-4 py-2 text-sm shadow-doc ${n.tone === "bad" ? "border-bad-mark text-bad" : n.tone === "warn" ? "border-warn-mark text-ink" : "border-ink text-ink"}`}
+        >
+          {n.message}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+/** What is recorded, and — stated plainly — what a browser cannot see. */
+function MonitorNote() {
+  return (
+    <details className="relative z-[2] mt-12 border-t border-rule pt-4 text-xs text-ink-3">
+      <summary className="cursor-pointer">What this assessment records</summary>
+      <p className="mt-3">
+        While this page is open it records: leaving the tab or window (and for how long), leaving full screen, copy, paste and print attempts (all blocked),
+        screenshot and developer-tool shortcuts, reloads, a second tab with this session, and device-clock jumps. A blocked paste is compared with the article
+        on the server and then discarded. The server separately records requests for the article after it closes and any time the page is out of contact.
+      </p>
+      <p className="mt-2">Each event is rated by published rules. One accidental event never invalidates a result.</p>
+      <p className="mt-2">A browser cannot detect:</p>
+      <ul className="mt-1 list-disc pl-5">
+        {INTEGRITY_LIMITS.map((l) => (
+          <li key={l}>{l}</li>
+        ))}
+      </ul>
+    </details>
   );
 }
 

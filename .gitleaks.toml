@@ -5,3 +5,10 @@ useDefault = true
 [allowlist]
 description = "Publicly known Hardhat test key (local chain only)"
 regexes = ['''0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80''']
+
+# LLM provider keys live only in apps/api/.env (gitignored). Fail loudly if one is ever committed.
+[[rules]]
+id = "groq-api-key"
+description = "Groq API key"
+regex = '''gsk_[A-Za-z0-9]{40,}'''
+keywords = ["gsk_"]

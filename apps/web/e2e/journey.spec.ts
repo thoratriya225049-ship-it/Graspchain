@@ -19,7 +19,7 @@ test("student journey: read → hide (403) → write → score → feedback → 
 
   // F7: score first, then feedback, then the X-Ray link and the receipt.
   const score = page.getByLabel(/^Score \d+(\.\d)? out of 10$/);
-  await expect(score).toBeVisible({ timeout: 15_000 });
+  await expect(score).toBeVisible({ timeout: 60_000 });
   await expect(page.getByText("How this number was made")).toBeVisible();
   await expect(
     page

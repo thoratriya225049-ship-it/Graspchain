@@ -174,6 +174,9 @@ function Readouts({ s }: { s: Status }) {
                 <span className={`block h-full ${pctCap > 0.9 ? "bg-bad-mark" : "bg-ink"}`} style={{ width: `${pctCap * 100}%` }} />
               </span>
               {s.config.judge.kind === "local" ? <span className="mt-1 block text-warn">Local demo judge: no Jev calls are made.</span> : null}
+              {s.config.judge.kind === "evidence" ? (
+                <span className="mt-1 block text-ink-3">Evidence judge: no Jev calls are made; LLM usage is under LLM.</span>
+              ) : null}
             </>
           }
         />

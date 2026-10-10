@@ -1,3 +1,6 @@
+import type { EvidenceDecision, KpClassification } from "./evidence";
+import type { IntegrityAssessment, IntegrityDecision, IntegrityOutcome, IntegrityStatus } from "./integrity";
+
 /**
  * Domain types shared by the API, the web app, the scripts and the static verifier.
  * Field names follow PRD §9 and SYSTEM_DESIGN §6.
@@ -162,6 +165,7 @@ export interface Flags {
   injectionSuspected: boolean;
   gibberishSuspected: boolean;
   mainPurposeMissing: boolean;
+  /** Counted from server-recorded integrity events (never from what the client claims at submit). */
   pasteCount: number;
   blurCount: number;
   copyCount: number;
@@ -205,10 +209,16 @@ export interface ScorePayload {
   tScoreMs: number;
   judge: JudgeInfo;
   segmentation: Segmentation;
+  /** Evidence judge only: the validated evidence and every rule that fired. */
+  evidence?: EvidenceDecision | null;
+  /** Assessment conditions, judged separately from comprehension (never deducted from the score). */
+  integrity?: IntegrityAssessment | null;
 }
 
+export type JudgeKind = "jev" | "local" | "evidence";
+
 export interface JudgeInfo {
-  kind: "jev" | "local";
+  kind: JudgeKind;
   model: string;
   /** True when this answer came from the response cache (DEMO_MODE=replay or repeat input). */
   cached: boolean;
@@ -290,7 +300,11 @@ export interface Receipt {
     lowConfidence: boolean;
     flags: { injectionSuspected: boolean; pasteCount: number; blurCount: number };
     feedbackHash: string;
-    review: { reviewerRef: string; reason: string; at: string; previousScore: number } | null;
+    review: { reviewerRef: string; reason: string; at: string; previousScore: number; integrityDecision?: IntegrityDecision } | null;
+    /** Evidence judge: key-point classifications and a hash binding the full evidence trail. */
+    evidence?: { judge: string; classifications: Record<string, KpClassification>; decisionHash: string };
+    /** Assessment conditions: status, outcome and a hash binding the integrity event log. */
+    integrity?: ReceiptIntegrity;
   };
   fairness: {
     admissionMode: FairMode;
@@ -300,6 +314,16 @@ export interface Receipt {
     latencyCompMs: number;
   };
   createdAt: string;
+}
+
+export interface ReceiptIntegrity {
+  rulesVersion: string;
+  status: IntegrityStatus;
+  outcome: IntegrityOutcome;
+  points: number;
+  eventCount: number;
+  eventsHash: string;
+  findings: string[];
 }
 
 // ───────────────────────── Verification (PRD §9.4.5) ─────────────────────────

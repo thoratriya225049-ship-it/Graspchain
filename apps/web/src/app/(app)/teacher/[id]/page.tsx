@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { formatDateTime, type FusionResult } from "@graspchain/shared";
+import { EvidenceTrail, IntegrityBanner, IntegrityPanel, IntegrityTag } from "@/components/assessment/Integrity";
 import { ScoreBreakdown } from "@/components/assessment/ScoreBreakdown";
 import { Notice } from "@/components/ui/Bits";
 import { CHAIN, CLAIM, KP, Mark, TONE_MARK, TONE_WASH, Tag, type Tone } from "@/components/ui/Status";
@@ -115,8 +116,9 @@ export default async function ReviewItem({ params }: { params: Promise<{ id: str
             </Tag>
           ) : null}
           {d.score.flags.mainPurposeMissing ? <Tag tone="warn">Central idea not stated</Tag> : null}
+          <IntegrityTag integrity={d.integrity} />
           <Tag tone="none">
-            Pasted {d.score.flags.pasteCount}× · left tab {d.score.flags.blurCount}× · copied {d.score.flags.copyCount}×
+            Paste attempts {d.score.flags.pasteCount}× · left tab/window {d.score.flags.blurCount}× · copy attempts {d.score.flags.copyCount}×
           </Tag>
         </div>
       ) : (
@@ -126,6 +128,8 @@ export default async function ReviewItem({ params }: { params: Promise<{ id: str
           </Notice>
         </div>
       )}
+
+      {d.score ? <IntegrityBanner integrity={d.integrity} /> : null}
 
       <div className="mt-10 grid gap-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-16">
         <section aria-labelledby="ans">
@@ -165,6 +169,7 @@ export default async function ReviewItem({ params }: { params: Promise<{ id: str
           <h2 id="jev" className="eyebrow">
             Judge output · {d.judge?.model}
             {d.judge?.kind === "local" ? " (local demo stand-in, not Jev)" : ""}
+            {d.judge?.kind === "evidence" ? " (rule outputs from verified evidence: probabilities are 0 or 1)" : ""}
           </h2>
           {f ? (
             <>
@@ -233,14 +238,18 @@ export default async function ReviewItem({ params }: { params: Promise<{ id: str
           ) : null}
 
           <div className="mt-12 border border-ink bg-paper-raised p-6 shadow-doc">
-            <h2 className="eyebrow text-ink">Correct the score</h2>
+            <h2 className="eyebrow text-ink">Correct the score or decide on integrity</h2>
             {current ? (
               <>
                 <p className="mt-2 text-sm text-ink-2">
                   Current record <span className="mono">{current.assessmentId.slice(0, 8)}</span> ·{" "}
                   <Mark spec={CHAIN[current.chainStatus] ?? CHAIN.queued} compact />
                 </p>
-                <OverrideForm assessmentId={current.assessmentId} currentScore={d.score?.finalScore ?? 5} />
+                <OverrideForm
+                  assessmentId={current.assessmentId}
+                  currentScore={d.score?.finalScore ?? 5}
+                  integrityOutcome={d.integrity && !d.integrity.review ? d.integrity.outcome : null}
+                />
               </>
             ) : (
               <p className="mt-2 text-sm text-ink-3">There is no receipt to correct yet.</p>
@@ -253,7 +262,9 @@ export default async function ReviewItem({ params }: { params: Promise<{ id: str
               <ul className="mt-2 border-t border-ink">
                 {d.reviews.map((r) => (
                   <li key={r.id} className="border-b border-rule py-3 text-sm">
-                    <span className="mono">{r.reviewer}</span> · {r.previousScore.toFixed(1)} → {r.newScore.toFixed(1)} · {formatDateTime(r.createdAt)}
+                    <span className="mono">{r.reviewer}</span> ·{" "}
+                    {r.previousScore === r.newScore ? "integrity decision" : `${r.previousScore.toFixed(1)} → ${r.newScore.toFixed(1)}`} ·{" "}
+                    {formatDateTime(r.createdAt)}
                     <p className="mt-1 text-ink-3">“{r.reason}”</p>
                   </li>
                 ))}
@@ -265,6 +276,9 @@ export default async function ReviewItem({ params }: { params: Promise<{ id: str
           </Link>
         </section>
       </div>
+      {d.score ? <IntegrityPanel integrity={d.integrity} events={d.integrityEvents ?? []} /> : null}
+      {d.score ? <EvidenceTrail evidence={d.score.evidence} /> : null}
+      <div className="h-16" />
     </div>
   );
 }

@@ -26,11 +26,14 @@ export interface SessionRow {
   articleFetches: number;
   hiddenAt: number | null;
   lastSeenAt: number | null;
+  submittedAt: number | null;
   createdAt: number;
   updatedAt: number;
 }
 
 const CREATED_TTL_MS = 10 * 60_000;
+/** A request for the article this soon after it closed is a timing race, not an attempt. */
+const ARTICLE_GRACE_MS = 5_000;
 
 /**
  * Session state machine (SYSTEM_DESIGN §4.1):
@@ -115,6 +118,14 @@ export class SessionService {
     const settings = this.ctx.settings.get();
     const now = this.ctx.now();
     const id = crypto.randomUUID();
+    // One live assessment per student. Otherwise a second session for the same article could be
+    // opened while the first is in WRITING, to read the article again and answer in the first tab.
+    const live = this.ctx.db.prepare("SELECT * FROM sessions WHERE studentId = ? AND state IN ('CREATED','READING','WRITING')").all(studentId) as SessionRow[];
+    for (const o of live) {
+      if (!this.transition(o, o.state, "EXPIRED")) continue;
+      this.ctx.integrity.record(o.id, "SESSION_ABANDONED", { replacedBy: id, sameArticle: o.articleId === articleId }, "other");
+      if (o.ticketId) this.ctx.fairgate.release(o.ticketId);
+    }
     this.ctx.db
       .prepare(
         `INSERT INTO sessions (id, studentId, articleId, state, readSeconds, clockMode, admissionMode, ticketId, windowId, createdAt, updatedAt)
@@ -146,8 +157,18 @@ export class SessionService {
       s = this.row(id)!;
     }
     if (s.state !== "READING" || s.readDeadline === null || now >= s.readDeadline) {
+      // Our page never asks after the close (it checks the session first), so this is recorded.
+      const closedAt = s.hiddenAt ?? s.readDeadline;
+      const since = closedAt === null ? null : now - closedAt;
+      this.ctx.integrity.record(
+        s.id,
+        "ARTICLE_ACCESS_ATTEMPT",
+        { state: s.state, msAfterClose: since, withinGrace: since !== null && since <= ARTICLE_GRACE_MS },
+        s.state === "WRITING" ? "writing" : "other",
+      );
       throw new AppError(403, "ARTICLE_HIDDEN", "The reading time is over; the article is no longer available.");
     }
+    if (s.articleFetches > 0) this.ctx.integrity.record(s.id, "ARTICLE_REFETCH", { fetch: s.articleFetches + 1 }, "reading");
     this.ctx.db.prepare("UPDATE sessions SET articleFetches = articleFetches + 1, lastSeenAt = ? WHERE id = ?").run(now, id);
     const a = this.ctx.articles.get(s.articleId)!;
     return {
@@ -209,7 +230,8 @@ export class SessionService {
     const attemptId = crypto.randomUUID();
     const now = nowIso();
     const ok = db.transaction(() => {
-      if (!this.transition(s, "WRITING", "EVALUATING", { pasteCount: body.pasteCount, blurCount: body.blurCount, copyCount: body.copyCount })) return false;
+      // Integrity counts are NOT taken from the body: they come from server-recorded events.
+      if (!this.transition(s, "WRITING", "EVALUATING", { submittedAt: this.ctx.now() })) return false;
       const attemptNo =
         (db.prepare("SELECT COUNT(*) n FROM attempts WHERE studentId = ? AND articleId = ?").get(studentId, s.articleId) as { n: number }).n + 1;
       db.prepare(
@@ -225,6 +247,18 @@ export class SessionService {
     }
     this.ctx.evaluator.run(attemptId);
     return { attemptId, existing: false };
+  }
+
+  /** The student's live session, if any (the start page offers to resume it). */
+  active(studentId: string) {
+    const rows = this.ctx.db
+      .prepare("SELECT * FROM sessions WHERE studentId = ? AND state IN ('CREATED','READING','WRITING') ORDER BY createdAt DESC")
+      .all(studentId) as SessionRow[];
+    for (const r of rows) {
+      const s = this.settle(r);
+      if (s.state === "CREATED" || s.state === "READING" || s.state === "WRITING") return this.view(s);
+    }
+    return null;
   }
 
   view(s: SessionRow) {

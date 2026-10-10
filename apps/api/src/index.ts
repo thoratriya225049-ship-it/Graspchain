@@ -23,6 +23,8 @@ async function main() {
   const ctx = await createContext(cfg, logger);
   const app = await buildApp(ctx, { loggerInstance: logger });
 
+  if (ctx.judge.kind === "evidence")
+    logger.info({ judge: ctx.judge.model }, "Evidence judge: the LLM extracts evidence; deterministic rules classify and score.");
   if (ctx.judge.kind === "local") logger.warn("JUDGE=local: the local demo judge stands in for Jev. Receipts say so (models.jev = local-rubric-judge@1).");
   if (!ctx.llm) logger.warn("No LLM configured: segmentation uses the sentence splitter and feedback uses templates (both recorded per attempt).");
   if (!ctx.chain.canWrite)

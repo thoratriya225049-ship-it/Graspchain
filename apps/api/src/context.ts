@@ -1,5 +1,5 @@
 import type { FastifyBaseLogger } from "fastify";
-import { promptTemplateFingerprint, sha256Hex, type Article } from "@graspchain/shared";
+import { EVIDENCE_SYSTEM, promptTemplateFingerprint, sha256Hex, type Article } from "@graspchain/shared";
 import type { ChainPort } from "./chain/client";
 import { EthersChain } from "./chain/client";
 import { ChainWriter } from "./chain/writer";
@@ -7,12 +7,14 @@ import type { Config } from "./config";
 import { loadArticles, syncArticles } from "./content";
 import { migrate, openDb, type DB } from "./db";
 import { ApiCache, Usage } from "./evaluator/cache";
+import { EvidenceJudge } from "./evaluator/evidenceJudge";
 import { EventHub } from "./evaluator/hub";
 import { JevJudge, type Judge } from "./evaluator/judge";
 import { createLlm, FEEDBACK_SYSTEM, SEGMENT_SYSTEM, type Llm } from "./evaluator/llm";
 import { LocalJudge } from "./evaluator/localJudge";
 import { Evaluator } from "./evaluator/pipeline";
 import { FairGate } from "./fairgate/service";
+import { IntegrityService } from "./integrity/service";
 import { SessionService } from "./session/service";
 import { SettingsStore } from "./settings";
 
@@ -32,6 +34,7 @@ export interface Ctx {
   settings: SettingsStore;
   fairgate: FairGate;
   sessions: SessionService;
+  integrity: IntegrityService;
   evaluator: Evaluator;
   promptHash: string;
   now: () => number;
@@ -52,8 +55,9 @@ export async function createContext(cfg: Config, log: FastifyBaseLogger, o: CtxO
   syncArticles(db, articles);
   const cache = new ApiCache(db);
   const usage = new Usage(db);
-  const judge = o.judge ?? (cfg.JUDGE === "local" ? new LocalJudge() : new JevJudge(cfg, cache, usage));
   const llm = o.llm !== undefined ? o.llm : createLlm(cfg, cache, usage);
+  const judge =
+    o.judge ?? (cfg.JUDGE === "local" ? new LocalJudge() : cfg.JUDGE === "evidence" ? new EvidenceJudge(cfg, llm) : new JevJudge(cfg, cache, usage));
   const chain = o.chain ?? new EthersChain(cfg);
   const ctx = {
     cfg,
@@ -67,12 +71,13 @@ export async function createContext(cfg: Config, log: FastifyBaseLogger, o: CtxO
     cache,
     usage,
     settings: new SettingsStore(db, cfg),
-    promptHash: await sha256Hex(promptTemplateFingerprint({ segment: SEGMENT_SYSTEM, feedback: FEEDBACK_SYSTEM })),
+    promptHash: await sha256Hex(promptTemplateFingerprint({ segment: SEGMENT_SYSTEM, feedback: FEEDBACK_SYSTEM, evidence: EVIDENCE_SYSTEM })),
     now: o.now ?? Date.now,
   } as Ctx;
   ctx.writer = new ChainWriter(db, chain, log);
   ctx.fairgate = new FairGate(ctx);
   ctx.sessions = new SessionService(ctx);
+  ctx.integrity = new IntegrityService(ctx);
   ctx.evaluator = new Evaluator(ctx);
   return ctx;
 }

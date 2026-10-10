@@ -1,12 +1,12 @@
 import crypto from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { ReviewBody, sha256Hex, type Flags, type FusionResult, type Receipt, type ScorePayload } from "@graspchain/shared";
+import { OUTCOME_COPY, ReviewBody, reviewedOutcome, sha256Hex, type Flags, type FusionResult, type Receipt, type ScorePayload } from "@graspchain/shared";
 import { requireUser } from "../auth";
 import type { Ctx } from "../context";
 import { nowIso, parse } from "../db";
 import { AppError, conflict, notFound } from "../errors";
-import { attemptsOf, currentReceipt, getAttempt, resultPayload } from "../queries";
+import { attemptsOf, currentReceipt, effectiveIntegrity, getAttempt, integrityTimeline, resultPayload } from "../queries";
 import { audit } from "../settings";
 import { commitReceipt, getReceiptRow } from "../trust/receipts";
 
@@ -41,7 +41,11 @@ export const teacherRoutes = (ctx: Ctx) => async (app: FastifyInstance) => {
       const score = r.scorePayload ? parse<ScorePayload>(r.scorePayload) : null;
       const rc = r.status === "done" ? currentReceipt(ctx, r.id) : null;
       const reviewed = !!rc && rc.current.assessmentId !== rc.original.assessmentId;
+      const integrity = score ? effectiveIntegrity(ctx, r.id, score.integrity) : null;
       const reasons: string[] = [];
+      if (integrity && !integrity.review && (integrity.outcome === "REVIEW_REQUIRED" || integrity.outcome === "NOT_CERTIFIED"))
+        reasons.push(`Integrity ${integrity.status} (${integrity.points} pts) — ${OUTCOME_COPY[integrity.outcome].title.toLowerCase()}`);
+      else if (integrity?.status === "SUSPICIOUS") reasons.push(`Integrity SUSPICIOUS (${integrity.points} pts)`);
       if (r.lowConfidence) reasons.push(`Judge uncertain on ${score?.uncertainItems.join(", ") || "some items"}`);
       if (flags?.injectionSuspected) reasons.push("Contains text addressed to the grader");
       if (flags?.gibberishSuspected) reasons.push("Looks like keyword stuffing or off-topic text");
@@ -60,6 +64,8 @@ export const teacherRoutes = (ctx: Ctx) => async (app: FastifyInstance) => {
         assessmentId: rc?.current.assessmentId ?? null,
         reviewed,
         reasons,
+        integrityStatus: integrity?.status ?? null,
+        integrityOutcome: integrity?.outcome ?? null,
       };
     });
     const search = q.search?.toUpperCase();
@@ -93,6 +99,7 @@ export const teacherRoutes = (ctx: Ctx) => async (app: FastifyInstance) => {
       },
       claims,
       fused: ev ? parse<FusionResult>(ev.fused as string) : null,
+      integrityEvents: integrityTimeline(ctx, id),
       judge: ev
         ? {
             kind: ev.judgeKind,
@@ -118,8 +125,10 @@ export const teacherRoutes = (ctx: Ctx) => async (app: FastifyInstance) => {
     if (!old) throw notFound("Assessment");
     if (old.supersededBy) throw conflict("ALREADY_SUPERSEDED", "This record was already corrected; review the newest version.");
     const base = parse<Receipt>(old.originalJson ?? old.canonicalJson);
-    const newScore = Math.round(body.newScore * 10) / 10;
-    if (newScore === base.assessment.finalScore) throw new AppError(400, "SAME_SCORE", "The new score equals the current score.");
+    const newScore = body.newScore === undefined ? base.assessment.finalScore : Math.round(body.newScore * 10) / 10;
+    if (newScore === base.assessment.finalScore && !body.integrityDecision) throw new AppError(400, "SAME_SCORE", "The new score equals the current score.");
+    if (body.integrityDecision && !base.assessment.integrity)
+      throw new AppError(400, "NO_INTEGRITY_RECORD", "This record has no integrity assessment to decide on.");
     const reviewer = ctx.db.prepare("SELECT studentCode, salt FROM students WHERE id = ?").get(u.id) as { studentCode: string; salt: string };
     const at = nowIso();
     const receipt: Receipt = structuredClone(base);
@@ -131,7 +140,11 @@ export const teacherRoutes = (ctx: Ctx) => async (app: FastifyInstance) => {
       reason: body.reason,
       at,
       previousScore: base.assessment.finalScore,
+      ...(body.integrityDecision ? { integrityDecision: body.integrityDecision } : {}),
     };
+    // The integrity facts are unchanged; only the outcome follows the teacher's decision.
+    if (body.integrityDecision && receipt.assessment.integrity)
+      receipt.assessment.integrity.outcome = reviewedOutcome(receipt.assessment.integrity, body.integrityDecision);
     receipt.createdAt = at;
     const { recordHash } = await commitReceipt(ctx.db, old.attemptId, receipt, ctx.cfg.CHAIN_ID);
     ctx.db
@@ -139,8 +152,21 @@ export const teacherRoutes = (ctx: Ctx) => async (app: FastifyInstance) => {
         "INSERT INTO reviews (id, assessmentId, oldAssessmentId, attemptId, reviewerId, reason, previousScore, newScore, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
       )
       .run(crypto.randomUUID(), receipt.assessmentId, oldId, old.attemptId, u.id, body.reason, base.assessment.finalScore, newScore, at);
-    audit(ctx.db, u.code, "teacher.review", receipt.assessmentId, { oldId, previousScore: base.assessment.finalScore, newScore });
-    return { assessmentId: receipt.assessmentId, supersedes: oldId, recordHash, chainStatus: "queued", previousScore: base.assessment.finalScore, newScore };
+    audit(ctx.db, u.code, "teacher.review", receipt.assessmentId, {
+      oldId,
+      previousScore: base.assessment.finalScore,
+      newScore,
+      integrityDecision: body.integrityDecision ?? null,
+    });
+    return {
+      assessmentId: receipt.assessmentId,
+      supersedes: oldId,
+      recordHash,
+      chainStatus: "queued",
+      previousScore: base.assessment.finalScore,
+      newScore,
+      integrityDecision: body.integrityDecision ?? null,
+    };
   });
 
   /** All attempts of one student (teacher search drill-down). */

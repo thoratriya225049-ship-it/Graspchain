@@ -16,6 +16,7 @@ export default async function FocusLayout({ children }: { children: React.ReactN
         </div>
       </header>
       <main id="main" className="flex-1">
+        <p className="gc-print-note frame pt-10 font-serif text-xl">Printing is disabled during an assessment.</p>
         {children}
       </main>
     </div>

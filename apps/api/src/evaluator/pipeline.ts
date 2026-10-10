@@ -7,6 +7,8 @@ import {
   buildQuestions,
   buildState,
   buildXray,
+  canonicalize,
+  evidenceClassifications,
   fiveGramOverlap,
   fuse,
   mergeAnswers,
@@ -137,7 +139,7 @@ export class Evaluator {
     const code = e instanceof AppError ? e.code : "EVALUATION_ERROR";
     const message = e instanceof Error ? e.message : String(e);
     const age = this.ctx.now() - new Date(a.createdAt).getTime();
-    const giveUp = age > RETRY_FOR_MS || code === "REPLAY_MISS" || code === "JEV_AUTH";
+    const giveUp = age > RETRY_FOR_MS || ["REPLAY_MISS", "JEV_AUTH", "EVIDENCE_AUTH", "EVIDENCE_NOT_CONFIGURED"].includes(code);
     const status = giveUp ? "failed" : "delayed";
     db.prepare("UPDATE attempts SET status = ?, error = ?, retryCount = retryCount + 1, nextRetryAt = ?, updatedAt = ? WHERE id = ?").run(
       status,
@@ -177,9 +179,6 @@ export class Evaluator {
       windowId: string | null;
       readSeconds: number;
       latencyCompMs: number;
-      pasteCount: number;
-      blurCount: number;
-      copyCount: number;
     };
     const student = db.prepare("SELECT studentCode, salt FROM students WHERE id = ?").get(a.studentId) as { studentCode: string; salt: string };
     const article = this.ctx.articles.get(a.articleId)!;
@@ -216,12 +215,12 @@ export class Evaluator {
     const tj = this.ctx.now();
     const state = buildState(article, answer, claims);
     const questions = buildQuestions(article, claims);
-    const first: JudgeCall = await judge.systemOne({ article, state, questions });
+    const first: JudgeCall = await judge.systemOne({ article, state, questions, claims });
     let answers: JevAnswers = first.answers;
     let inputTokens = first.usage.input_tokens;
     let debias: JudgeCall | null = null;
     if (cfg.JEV_ORDER_DEBIAS && judge.kind === "jev") {
-      debias = await judge.systemOne({ article, state, questions: buildQuestions(article, claims, { reversed: true }) });
+      debias = await judge.systemOne({ article, state, questions: buildQuestions(article, claims, { reversed: true }), claims });
       const choiceOnly = Object.fromEntries(Object.entries(debias.answers).filter(([, x]) => x.type === "choice"));
       answers = mergeAnswers(answers, choiceOnly);
       inputTokens += debias.usage.input_tokens;
@@ -230,7 +229,7 @@ export class Evaluator {
     let reask: JudgeCall | null = null;
     let stillUncertain: string[] = [];
     if (uncertain.length) {
-      reask = await judge.systemOne({ article, state, questions: buildQuestions(article, claims, { rephrased: true, only: uncertain }) });
+      reask = await judge.systemOne({ article, state, questions: buildQuestions(article, claims, { rephrased: true, only: uncertain }), claims });
       answers = mergeAnswers(answers, reask.answers);
       inputTokens += reask.usage.input_tokens;
       stillUncertain = uncertainKeys(Object.fromEntries(uncertain.map((k) => [k, answers[k]])));
@@ -241,14 +240,24 @@ export class Evaluator {
     this.emit(attemptId, { type: "stage", data: { stage: "scoring" } });
     const overlap5 = fiveGramOverlap(answer, articleText(article));
     const fused = fuse({ article, claims, answers, overlap5 });
+    // Integrity is assessed from server-recorded events, separately from comprehension: it never
+    // changes the score, it decides whether the score is certified.
+    const { assessment: integrity, events: integrityEvents } = this.ctx.integrity.assess({
+      sessionId: a.sessionId,
+      seeded: !!a.seeded,
+      wordCount: a.wordCount,
+      answerOverlap5: overlap5,
+    });
+    const n = (...types: string[]) => types.reduce((s, t) => s + (integrity.counts[t as keyof typeof integrity.counts] ?? 0), 0);
     const flags: Flags = {
       injectionSuspected: fused.noul.containsInstructions >= INJECTION_FLAG_AT,
       gibberishSuspected: fused.noul.gibberish >= GIBBERISH_CAP_AT,
       mainPurposeMissing: fused.noul.mainPurpose < PURPOSE_CAP_BELOW,
-      pasteCount: session.pasteCount,
-      blurCount: session.blurCount,
-      copyCount: session.copyCount,
+      pasteCount: n("PASTE_ATTEMPT", "SUSPICIOUS_PASTE"),
+      blurCount: n("TAB_SWITCH", "WINDOW_BLUR"),
+      copyCount: n("COPY_ATTEMPT"),
     };
+    const evidence = first.evidence ?? null;
     const claimSummary: ClaimSummary = {
       count: fused.claims.length,
       supported: fused.claims.filter((c) => c.label === "supported").length,
@@ -276,14 +285,18 @@ export class Evaluator {
       tScoreMs,
       judge: { kind: judge.kind, model: first.model, cached: first.cached },
       segmentation,
+      evidence,
+      integrity,
     };
+    const jevTokens = judge.kind === "jev" ? inputTokens : 0;
     const now = nowIso();
     db.transaction(() => {
       db.prepare("DELETE FROM evaluations WHERE attemptId = ?").run(attemptId);
       db.prepare(
         `INSERT INTO evaluations (id, attemptId, segmentation, judgeKind, jevRequest, jevResponse, jevReask, jevModel, judgeCached, llmProvider, llmModel,
-          scorePayload, fused, dimensions, finalScore, band, lowConfidence, flags, claimStats, latencySegMs, latencyJevMs, tScoreMs, jevInputTokens, llmTokens, costEst, createdAt, updatedAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          scorePayload, fused, dimensions, finalScore, band, lowConfidence, flags, claimStats, latencySegMs, latencyJevMs, tScoreMs, jevInputTokens, llmTokens, costEst,
+          evidence, integrity, integrityStatus, integrityOutcome, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         crypto.randomUUID(),
         attemptId,
@@ -314,9 +327,13 @@ export class Evaluator {
         segMs,
         jevMs,
         tScoreMs,
-        inputTokens,
-        segTokens,
-        inputTokens * JEV_USD_PER_INPUT_TOKEN,
+        jevTokens,
+        segTokens + (judge.kind === "evidence" ? inputTokens : 0),
+        jevTokens * JEV_USD_PER_INPUT_TOKEN,
+        evidence ? JSON.stringify(evidence) : null,
+        JSON.stringify({ ...integrity, events: integrityEvents }),
+        integrity.status,
+        integrity.outcome,
         now,
         now,
       );
@@ -334,7 +351,7 @@ export class Evaluator {
     const fctx = { article, answer, claims, fused };
     let feedback: FeedbackRecord | null = null;
     let fallbackReason = "No LLM is configured, so feedback is built from the judge's results.";
-    let llmTokens = segTokens;
+    let llmTokens = segTokens + (judge.kind === "evidence" ? inputTokens : 0);
     if (llm) {
       for (let attempt = 0; attempt < 2 && !feedback; attempt++) {
         try {
@@ -371,6 +388,18 @@ export class Evaluator {
       promptHash: this.ctx.promptHash,
       models: { jev: first.model, llm: llm ? `${llm.provider}/${llm.model}` : "none" },
       score,
+      evidence: evidence
+        ? { judge: evidence.version, classifications: evidenceClassifications(evidence), decisionHash: await sha256Hex(canonicalize(evidence)) }
+        : undefined,
+      integrity: {
+        rulesVersion: integrity.rulesVersion,
+        status: integrity.status,
+        outcome: integrity.outcome,
+        points: integrity.points,
+        eventCount: integrity.eventCount,
+        eventsHash: await sha256Hex(canonicalize(integrityEvents.map(({ id: _id, ...e }) => e))),
+        findings: integrity.findings.filter((f) => f.severity !== "INFO").map((f) => `${f.severity} ${f.code} x${f.count}`),
+      },
       feedback: feedback.feedback,
       fairness: {
         admissionMode: session.admissionMode,
@@ -404,7 +433,8 @@ export class Evaluator {
         tScoreMs,
         inputTokens,
         llmTokens,
-        costEst: Number((inputTokens * JEV_USD_PER_INPUT_TOKEN).toFixed(6)),
+        costEst: Number((jevTokens * JEV_USD_PER_INPUT_TOKEN).toFixed(6)),
+        integrity: integrity.status,
         segmentation,
         judge: judge.kind,
         cached: first.cached,

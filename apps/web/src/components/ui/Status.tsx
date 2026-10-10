@@ -36,7 +36,7 @@ interface Spec {
 
 export const KP: Record<string, Spec> = {
   correct: { tone: "ok", icon: "check", word: "Understood" },
-  vague: { tone: "warn", icon: "vague", word: "Vague" },
+  vague: { tone: "warn", icon: "vague", word: "Partly understood" },
   incorrect: { tone: "bad", icon: "cross", word: "Misunderstood" },
   absent: { tone: "none", icon: "missed", word: "Missed" },
 };
@@ -44,7 +44,7 @@ export const KP: Record<string, Spec> = {
 export const CLAIM: Record<string, Spec> = {
   supported: { tone: "ok", icon: "check", word: "Supported" },
   partial: { tone: "warn", icon: "vague", word: "Partly right" },
-  not_in_article: { tone: "none", icon: "missed", word: "Not in the article" },
+  not_in_article: { tone: "none", icon: "missed", word: "Unsupported by the article" },
   contradicted: { tone: "bad", icon: "cross", word: "Contradicted" },
 };
 

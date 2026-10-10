@@ -16,3 +16,5 @@ export * from "./stats";
 export * from "./format";
 export * from "./sse";
 export * from "./registry";
+export * from "./evidence";
+export * from "./integrity";

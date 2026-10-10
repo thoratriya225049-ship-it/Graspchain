@@ -63,10 +63,24 @@ function VerifyBody({ v, verifier, chainName }: { v: Verification; verifier: str
       </span>,
     ],
     [
-      "Final score",
+      "Comprehension score",
       <span key="c" className="num font-serif text-lg">
         {r.assessment.finalScore.toFixed(1)}
       </span>,
+    ],
+    [
+      "Integrity",
+      r.assessment.integrity ? (
+        <span key="j" className="text-sm">
+          {r.assessment.integrity.status.replace(/_/g, " ").toLowerCase()} · {r.assessment.integrity.outcome.replace(/_/g, " ").toLowerCase()} ·{" "}
+          <span className="mono text-ink-3">{r.assessment.integrity.rulesVersion}</span>
+          {r.assessment.review?.integrityDecision ? ` · teacher ${r.assessment.review.integrityDecision.toLowerCase()}` : ""}
+        </span>
+      ) : (
+        <span key="j" className="text-sm text-ink-3">
+          not recorded (receipt predates integrity monitoring)
+        </span>
+      ),
     ],
     [
       "Judge · LLM",

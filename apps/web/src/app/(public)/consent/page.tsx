@@ -14,10 +14,13 @@ export default async function ConsentPage({ searchParams }: { searchParams: Prom
   const cfg = await getConfig();
   const llm = cfg?.llm.enabled ? `${cfg.llm.provider} (${cfg.llm.model})` : "no LLM is configured in this deployment";
   const rows: [string, string][] = [
-    ["What we store", "Your roster code, your answers, how long you read, and paste / tab-switch counts (shown as neutral flags, never penalties)."],
+    [
+      "What we store",
+      "Your roster code, your answers, how long you read, and assessment-integrity events while an assessment page is open: leaving the tab or window, full-screen exits, blocked copy/paste/print attempts, reloads and similar. They never change your comprehension score; under published rules, serious or repeated events can mean a result needs a teacher's review or is not certified. A blocked paste is compared with the article on the server and then discarded.",
+    ],
     [
       "Who sees your summary",
-      `The judge (${cfg?.judge.kind === "jev" ? "Jev by TypeSafe, which states it does not train on user data" : "a local demo judge on this server — Jev is not configured"}) and the LLM (${llm}). Google's free Gemini tier states content may be "used to improve our products"; names are never sent, and Groq can be used instead.`,
+      `The judge (${cfg?.judge.kind === "jev" ? "Jev by TypeSafe, which states it does not train on user data" : cfg?.judge.kind === "evidence" ? "Graspchain's evidence judge: the LLM below extracts evidence from your answer and our code decides" : "a local demo judge on this server — Jev is not configured"}) and the LLM (${llm}). Google's free Gemini tier states content may be "used to improve our products"; names are never sent, and Groq can be used instead.`,
     ],
     [
       "What goes on-chain",

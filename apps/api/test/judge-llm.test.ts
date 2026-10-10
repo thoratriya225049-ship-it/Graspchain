@@ -122,6 +122,9 @@ describe("LLM stages and their fallbacks", () => {
     segment: async () => ({ claims: [], tokens: 0, cached: false }),
     feedback: async () => ({ raw: null, tokens: 0, cached: false }),
     baselineScore: async () => ({ score: 5, cached: false }),
+    extractEvidence: async () => {
+      throw new Error("not used by these tests");
+    },
     ...o,
   });
 

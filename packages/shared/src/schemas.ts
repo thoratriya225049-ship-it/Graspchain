@@ -61,14 +61,19 @@ export const SubmitBody = z.object({
     .min(1)
     .max(MAX_WORDS * 12),
   idempotencyKey: z.string().min(8).max(80),
-  pasteCount: z.number().int().min(0).max(10000).default(0),
-  blurCount: z.number().int().min(0).max(10000).default(0),
-  copyCount: z.number().int().min(0).max(10000).default(0),
+  // Accepted for older clients and IGNORED: integrity counts come only from server-recorded events,
+  // because anything the client states here could simply be set to zero.
+  pasteCount: z.number().int().min(0).max(10000).optional(),
+  blurCount: z.number().int().min(0).max(10000).optional(),
+  copyCount: z.number().int().min(0).max(10000).optional(),
 });
-export const ReviewBody = z.object({
-  newScore: z.number().min(1).max(10),
-  reason: z.string().trim().min(10, "Give a reason of at least 10 characters.").max(500),
-});
+export const ReviewBody = z
+  .object({
+    newScore: z.number().min(1).max(10).optional(),
+    integrityDecision: z.enum(["CLEARED", "UPHELD"]).optional(),
+    reason: z.string().trim().min(10, "Give a reason of at least 10 characters.").max(500),
+  })
+  .refine((b) => b.newScore !== undefined || b.integrityDecision !== undefined, "Give a new score, an integrity decision, or both.");
 export const ModeBody = z
   .object({
     researchMode: z.boolean(),

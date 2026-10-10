@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { DIMENSION_COPY, createSseParser, formatDateTime, type Feedback, type FeedbackRecord, type Stage } from "@graspchain/shared";
+import { DIMENSION_COPY, countsTowardProgress, createSseParser, formatDateTime, type Feedback, type FeedbackRecord, type Stage } from "@graspchain/shared";
 import { KeyIdeas, FeedbackView } from "@/components/assessment/Feedback";
+import { EvidenceTrail, IntegrityBanner, IntegrityPanel, IntegrityTag } from "@/components/assessment/Integrity";
 import { ScoreBreakdown } from "@/components/assessment/ScoreBreakdown";
 import { ScoreScale } from "@/components/assessment/ScoreScale";
 import { Button, ButtonLink } from "@/components/ui/Button";
@@ -137,6 +138,9 @@ export function ResultView({
   const evaluating = !s && !r.researchHidden && (r.status === "evaluating" || r.status === "scored");
   const kps = s?.keyPoints ?? [];
   const isOwner = viewer === "student";
+  // Integrity as it stands now (a teacher's decision applies), else as streamed with the score.
+  const integrity = r.integrity ?? s?.integrity ?? null;
+  const certified = countsTowardProgress(integrity?.outcome);
 
   return (
     <div className="frame pt-10 md:pt-14">
@@ -175,6 +179,8 @@ export function ResultView({
 
       {evaluating ? <Progress stage={stage} mode={mode} /> : null}
 
+      {s ? <IntegrityBanner integrity={integrity} /> : null}
+
       {s ? (
         <div className="mt-10 grid gap-14 border-t border-ink pt-10 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.25fr)] lg:gap-20">
           {/* ── The number, and how it was made ── */}
@@ -182,9 +188,10 @@ export function ResultView({
             <h2 id="score" className="sr-only">
               Score
             </h2>
+            <p className="eyebrow mb-3">Comprehension score{certified ? "" : " · not a certified result"}</p>
             <div className="flex items-end gap-5">
               <p
-                className="num font-serif text-[6.5rem] font-medium leading-[0.8] tracking-[-0.05em] md:text-numeral"
+                className={`num font-serif text-[6.5rem] font-medium leading-[0.8] tracking-[-0.05em] md:text-numeral ${certified ? "" : "text-ink-3"}`}
                 aria-label={`Score ${s.finalScore.toFixed(1)} out of 10`}
               >
                 {s.finalScore.toFixed(1)}
@@ -238,8 +245,7 @@ export function ResultView({
                   Looks like keyword stuffing
                 </Tag>
               ) : null}
-              {s.flags.pasteCount ? <Tag tone="none">Pasted {s.flags.pasteCount}×</Tag> : null}
-              {s.flags.blurCount ? <Tag tone="none">Left the tab {s.flags.blurCount}×</Tag> : null}
+              <IntegrityTag integrity={integrity} />
             </div>
 
             <div className="mt-10">
@@ -252,6 +258,7 @@ export function ResultView({
                 <dt className="eyebrow">Judge</dt>
                 <dd className="mono mt-1">{s.judge.model}</dd>
                 {s.judge.kind === "local" ? <dd className="mt-0.5 text-warn">Local demo stand-in, not Jev</dd> : null}
+                {s.judge.kind === "evidence" ? <dd className="mt-0.5 text-ink-3">The LLM extracts evidence; published rules decide</dd> : null}
               </div>
               <div>
                 <dt className="eyebrow">Claims</dt>
@@ -319,6 +326,9 @@ export function ResultView({
           </section>
         </div>
       ) : null}
+
+      {s ? <IntegrityPanel integrity={integrity} events={r.integrityEvents ?? []} /> : null}
+      {s ? <EvidenceTrail evidence={s.evidence} /> : null}
 
       {/* ── The receipt ── */}
       {r.record ? (

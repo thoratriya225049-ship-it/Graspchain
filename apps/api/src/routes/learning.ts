@@ -70,6 +70,23 @@ export const learningRoutes = (ctx: Ctx) => async (app: FastifyInstance) => {
     return ctx.sessions.renderAck(id, u.id);
   });
 
+  /**
+   * The integrity monitor's report (also its heartbeat). Rate-limited generously: the page sends
+   * one every 20 s plus one per burst of events.
+   */
+  app.post("/session/:id/integrity", { config: { rateLimit: { max: 120, timeWindow: "1 minute" } } }, async (req) => {
+    const u = requireUser(req, ["student"]);
+    const { id } = IdParams.parse(req.params);
+    const s = ctx.sessions.load(id, u.id);
+    const r = ctx.integrity.ingest(s, req.body);
+    return { ok: true, received: r.received, state: r.state };
+  });
+
+  app.get("/session/active", async (req) => {
+    const u = requireUser(req, ["student"]);
+    return { session: ctx.sessions.active(u.id) };
+  });
+
   app.post("/session/:id/heartbeat", async (req) => {
     const u = requireUser(req, ["student"]);
     const { id } = IdParams.parse(req.params);

@@ -2,7 +2,17 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createGroq } from "@ai-sdk/groq";
 import { generateObject, streamObject, type LanguageModel } from "ai";
 import { z } from "zod";
-import { FeedbackSchema, MAX_CLAIMS, type Article, type Claim, type FusionResult } from "@graspchain/shared";
+import {
+  EVIDENCE_SYSTEM,
+  EvidenceExtractionSchema,
+  FeedbackSchema,
+  MAX_CLAIMS,
+  evidencePrompt,
+  type Article,
+  type Claim,
+  type EvidencePromptInput,
+  type FusionResult,
+} from "@graspchain/shared";
 import type { Config } from "../config";
 import { ApiCache, Usage, cacheKey } from "./cache";
 
@@ -42,6 +52,8 @@ export interface Llm {
     signal: AbortSignal,
     attempt?: number,
   ): Promise<{ raw: unknown; tokens: number; cached: boolean }>;
+  /** Evidence judge Stage 2: raw evidence extraction (validated and decided by code, never trusted as-is). */
+  extractEvidence(input: EvidencePromptInput, signal: AbortSignal): Promise<{ raw: unknown; tokens: number; cached: boolean; model: string }>;
   /** Research baseline S1 (PRD §13.1): the LLM alone rates 1–10 with the same rubric. Never used for students. */
   baselineScore(article: Article, answer: string, opts?: { bypassCache?: boolean; run?: number }): Promise<{ score: number; cached: boolean }>;
 }
@@ -78,6 +90,12 @@ function feedbackPrompt(i: FeedbackInput): string {
   );
 }
 
+/** Groq's gpt-oss models reason before answering; "low" keeps extraction fast without changing the schema. */
+function providerOptions(provider: string, model: string) {
+  if (provider === "groq") return { groq: { structuredOutputs: true, ...(model.startsWith("openai/gpt-oss") ? { reasoningEffort: "low" as const } : {}) } };
+  return undefined;
+}
+
 class AiSdkLlm implements Llm {
   constructor(
     public provider: string,
@@ -86,7 +104,34 @@ class AiSdkLlm implements Llm {
     private cfg: Config,
     private cache: ApiCache,
     private usage: Usage,
+    private evidenceModel: string = model,
+    private evidenceLm: LanguageModel = lm,
   ) {}
+
+  async extractEvidence(input: EvidencePromptInput, signal: AbortSignal) {
+    const prompt = evidencePrompt(input);
+    const key = cacheKey(`llm:${this.provider}`, this.evidenceModel, { kind: "evidence", system: EVIDENCE_SYSTEM, prompt });
+    const model = `${this.provider}/${this.evidenceModel}`;
+    const hit = this.cache.get<unknown>(key);
+    if (hit) {
+      this.usage.record(this.provider, { cacheHit: true });
+      return { raw: hit, tokens: 0, cached: true, model };
+    }
+    if (this.cfg.DEMO_MODE === "replay") this.replayMiss("evidence");
+    const { object, usage } = await generateObject({
+      model: this.evidenceLm,
+      schema: EvidenceExtractionSchema,
+      system: EVIDENCE_SYSTEM,
+      prompt,
+      temperature: 0,
+      abortSignal: signal,
+      maxRetries: 1,
+      providerOptions: providerOptions(this.provider, this.evidenceModel),
+    });
+    this.usage.record(this.provider, { inputTokens: usage?.inputTokens ?? 0, outputTokens: usage?.outputTokens ?? 0, call: true });
+    this.cache.put(key, `llm:${this.provider}`, object);
+    return { raw: object, tokens: (usage?.inputTokens ?? 0) + (usage?.outputTokens ?? 0), cached: false, model };
+  }
 
   private replayMiss(kind: string): never {
     throw new Error(`DEMO_MODE=replay: no cached ${kind} response`);
@@ -108,6 +153,7 @@ class AiSdkLlm implements Llm {
       temperature: 0,
       abortSignal: signal,
       maxRetries: 0,
+      providerOptions: providerOptions(this.provider, this.model),
     });
     const tokens = (usage?.inputTokens ?? 0) + (usage?.outputTokens ?? 0);
     this.usage.record(this.provider, { inputTokens: usage?.inputTokens ?? 0, outputTokens: usage?.outputTokens ?? 0, call: true });
@@ -125,7 +171,16 @@ class AiSdkLlm implements Llm {
       return { raw: hit, tokens: 0, cached: true };
     }
     if (this.cfg.DEMO_MODE === "replay") this.replayMiss("feedback");
-    const res = streamObject({ model: this.lm, schema: FeedbackSchema, system: FEEDBACK_SYSTEM, prompt, temperature: 0, abortSignal: signal, maxRetries: 1 });
+    const res = streamObject({
+      model: this.lm,
+      schema: FeedbackSchema,
+      system: FEEDBACK_SYSTEM,
+      prompt,
+      temperature: 0,
+      abortSignal: signal,
+      maxRetries: 1,
+      providerOptions: providerOptions(this.provider, this.model),
+    });
     for await (const partial of res.partialObjectStream) onPartial(partial);
     const raw = await res.object;
     const usage = await res.usage;
@@ -160,11 +215,13 @@ export function createLlm(cfg: Config, cache: ApiCache, usage: Usage): Llm | nul
   if (!cfg.llmEnabled || !cfg.LLM_MODEL) return null;
   if (cfg.LLM_PROVIDER === "google") {
     const google = createGoogleGenerativeAI({ apiKey: cfg.GOOGLE_GENERATIVE_AI_API_KEY ?? "replay-only" });
-    return new AiSdkLlm("google", cfg.LLM_MODEL, google(cfg.LLM_MODEL), cfg, cache, usage);
+    const em = cfg.EVIDENCE_MODEL ?? cfg.LLM_MODEL;
+    return new AiSdkLlm("google", cfg.LLM_MODEL, google(cfg.LLM_MODEL), cfg, cache, usage, em, google(em));
   }
   if (cfg.LLM_PROVIDER === "groq") {
     const groq = createGroq({ apiKey: cfg.GROQ_API_KEY ?? "replay-only" });
-    return new AiSdkLlm("groq", cfg.LLM_MODEL, groq(cfg.LLM_MODEL), cfg, cache, usage);
+    const em = cfg.EVIDENCE_MODEL ?? cfg.LLM_MODEL;
+    return new AiSdkLlm("groq", cfg.LLM_MODEL, groq(cfg.LLM_MODEL), cfg, cache, usage, em, groq(em));
   }
   return null;
 }

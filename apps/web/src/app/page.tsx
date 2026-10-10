@@ -56,8 +56,8 @@ export default async function Landing() {
             A score you can learn from, and nobody can quietly change.
           </h1>
           <p className="mt-7 max-w-xl text-lg leading-relaxed text-ink-2">
-            Read a short technical article for a fixed time. It disappears. Explain it in your own words. In about two seconds you get a score, then precise
-            feedback, then an X-Ray of the article showing what you understood, missed and got wrong.
+            Read a short technical article for a fixed time. It disappears. Explain it in your own words. Within seconds you get a score, then precise feedback,
+            then an X-Ray of the article showing what you understood, missed and got wrong.
           </p>
           <div className="mt-10 flex flex-wrap items-center gap-6">
             <ButtonLink href="/login" size="lg" iconAfter="arrow">
@@ -132,7 +132,11 @@ export default async function Landing() {
             {[
               [
                 "Judge",
-                cfg.judge.kind === "jev" ? `Jev · ${cfg.judge.model}` : `${cfg.judge.model} — a local, deterministic stand-in for Jev (no Jev key configured)`,
+                cfg.judge.kind === "jev"
+                  ? `Jev · ${cfg.judge.model}`
+                  : cfg.judge.kind === "evidence"
+                    ? `${cfg.judge.model} — the LLM extracts evidence, deterministic rules classify and score`
+                    : `${cfg.judge.model} — a local, deterministic stand-in for Jev (no Jev key configured)`,
               ],
               [
                 "LLM",

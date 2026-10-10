@@ -49,7 +49,18 @@ export const healthRoutes = (ctx: Ctx) => async (app: FastifyInstance) => {
       chainReachable: chain.reachable,
       registryDeployed: chain.registryDeployed === true,
       chainWriter: ctx.chain.canWrite,
-      judge: ctx.judge.kind === "local" ? "local-demo" : ctx.cfg.JEV_API_KEY ? "jev-key-present" : ctx.cfg.DEMO_MODE === "replay" ? "jev-replay" : "missing",
+      judge:
+        ctx.judge.kind === "local"
+          ? "local-demo"
+          : ctx.judge.kind === "evidence"
+            ? ctx.llm
+              ? `evidence (${ctx.judge.model})`
+              : "evidence-missing-llm"
+            : ctx.cfg.JEV_API_KEY
+              ? "jev-key-present"
+              : ctx.cfg.DEMO_MODE === "replay"
+                ? "jev-replay"
+                : "missing",
       llm: ctx.llm ? `${ctx.llm.provider}/${ctx.llm.model}` : "none (fallbacks active)",
     };
     const ready = db;
