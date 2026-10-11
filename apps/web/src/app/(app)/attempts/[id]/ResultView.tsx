@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DIMENSION_COPY, countsTowardProgress, createSseParser, formatDateTime, type Feedback, type FeedbackRecord, type Stage } from "@graspchain/shared";
-import { KeyIdeas } from "@/components/assessment/Feedback";
+import { ComprehensionReport } from "@/components/assessment/Comprehension";
 import { EvidenceTrail, IntegrityPanel, IntegrityTag, STATUS_WORD } from "@/components/assessment/Integrity";
 import { ScoreBreakdown } from "@/components/assessment/ScoreBreakdown";
 import { ScoreScale } from "@/components/assessment/ScoreScale";
@@ -140,7 +140,6 @@ export function ResultView({
   const integrity = r.integrity ?? s?.integrity ?? null;
   const certified = countsTowardProgress(integrity?.outcome);
   const f = (r.feedback?.feedback ?? partial ?? null) as Partial<Feedback> | null;
-  const concept = (k?: string | null) => kps.find((x) => x.id === k)?.concept ?? k ?? "";
 
   // Understood / partial / missed, weighted by each key idea's importance.
   const split = useMemo(() => {
@@ -154,18 +153,6 @@ export function ResultView({
     const total = w.understood + w.partial + w.missed || 1;
     return { w, n, total };
   }, [kps]);
-
-  // The single strongest piece of evidence: a supported claim that explains how or why, with its source quote.
-  const strongest = useMemo(() => {
-    const claims = s?.evidence?.claims ?? [];
-    const pick =
-      claims.find((c) => c.classification === "UNDERSTOOD" && c.explainsHowOrWhy && c.evidence.length) ??
-      claims.find((c) => c.classification === "UNDERSTOOD" && c.evidence.length);
-    if (pick) return { claim: pick.text, quote: pick.evidence[0].quote, sentence: pick.evidence[0].sentence };
-    const u = f?.understood?.find((x) => x.evidence);
-    return u ? { claim: u.evidence!, quote: null, sentence: null, concept: concept(u.keyPointId) } : null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s, f]);
 
   return (
     <>
@@ -307,99 +294,14 @@ export function ResultView({
             </section>
 
             {/* ── What it means ── */}
-            <section aria-label="Explanation" className="mt-12">
-              <p className="display text-[clamp(1.5rem,3.2vw,2.125rem)] leading-[1.18] tracking-[-0.02em]">{f?.oneLineSummary ?? BAND_MEANING[s.band]}</p>
-              {!r.feedback && !partial ? <p className="mt-2 text-sm text-ink-3">Feedback is being written…</p> : null}
-            </section>
-
-            <div className="mt-12 space-y-12">
-              <Block title="What you understood">
-                {f?.understood?.length ? (
-                  <ul className="space-y-5">
-                    {f.understood.map((u, i) => (
-                      <li key={i}>
-                        <p className="flex items-center gap-2 font-medium text-ink">
-                          <Icon name="check" size={15} className="text-ok" />
-                          {concept(u.keyPointId)}
-                        </p>
-                        {u.evidence ? (
-                          <p className="mt-2 font-serif text-[1.0625rem] italic leading-relaxed text-ink-2">
-                            <span className="voice-student">“{u.evidence}”</span>
-                          </p>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <KeyIdeas keyPoints={kps.filter((k) => k.label === "correct")} />
-                )}
-              </Block>
-
-              {f?.misunderstood?.length || f?.missed?.length ? (
-                <Block title="What you missed or misread">
-                  <ul className="space-y-6">
-                    {f.misunderstood?.map((m, i) => (
-                      <li key={`m${i}`} className="rounded-[18px] bg-bad-wash/60 p-5">
-                        <p className="font-serif text-[1.0625rem] italic text-ink">
-                          <span className="voice-student">“{m.studentQuote}”</span>
-                        </p>
-                        <p className="mt-3 text-sm text-ink-2">
-                          <span className="font-semibold text-bad">Why it&rsquo;s off · </span>
-                          {m.why}
-                        </p>
-                        <p className="mt-1.5 text-sm text-ink-2">
-                          <span className="font-semibold text-ok">The source says · </span>
-                          {m.correctVersion}
-                        </p>
-                      </li>
-                    ))}
-                    {f.missed?.map((m, i) => (
-                      <li key={`x${i}`}>
-                        <p className="flex items-center gap-2 font-medium text-ink">
-                          <Icon name="missed" size={15} className="text-bad" />
-                          {concept(m.keyPointId)}
-                        </p>
-                        <p className="mt-1.5 text-[0.9375rem] text-ink-2">{m.whatToAdd}</p>
-                      </li>
-                    ))}
-                  </ul>
-                </Block>
-              ) : null}
-
-              {strongest ? (
-                <Block title="Your strongest evidence">
-                  <figure className="grid gap-3 sm:grid-cols-2">
-                    <blockquote className="rounded-[18px] bg-lavender/15 p-5">
-                      <p className="text-2xs font-semibold uppercase tracking-[0.14em] text-ink-3">You wrote</p>
-                      <p className="mt-2 font-serif text-[1.0625rem] leading-relaxed text-ink">“{strongest.claim}”</p>
-                    </blockquote>
-                    {strongest.quote ? (
-                      <blockquote className="rounded-[18px] bg-aqua/15 p-5">
-                        <p className="text-2xs font-semibold uppercase tracking-[0.14em] text-ink-3">The source · sentence {(strongest.sentence ?? 0) + 1}</p>
-                        <p className="mt-2 font-serif text-[1.0625rem] leading-relaxed text-ink">“{strongest.quote}”</p>
-                      </blockquote>
-                    ) : null}
-                  </figure>
-                </Block>
-              ) : null}
-
-              {f?.couldBeBetter?.length || f?.nextStep ? (
-                <Block title="What to improve">
-                  <ol className="space-y-4">
-                    {f.couldBeBetter?.map((c, i) => (
-                      <li key={i} className="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-2">
-                        <span className="mono text-sm text-ink-3">{i + 1}.</span>
-                        <div>
-                          <p className="text-[0.9375rem]">{c.action}</p>
-                          {c.exampleSentence ? <p className="mt-1 text-sm italic text-ink-3">e.g. “{c.exampleSentence}”</p> : null}
-                        </div>
-                      </li>
-                    ))}
-                  </ol>
-                  {f.nextStep ? <p className="mt-5 rounded-[14px] bg-mint px-4 py-3 text-[0.9375rem] text-ink">{f.nextStep}</p> : null}
-                </Block>
-              ) : null}
-            </div>
+            <ComprehensionReport
+              f={f}
+              record={r.feedback ?? null}
+              keyPoints={kps}
+              evidence={s.evidence}
+              fallbackSummary={BAND_MEANING[s.band]}
+              retryHref={isOwner && r.status === "done" ? `/start/${r.attempt.articleId}` : undefined}
+            />
 
             <div className="mt-12 flex flex-wrap items-center gap-x-6 gap-y-4">
               {r.xrayReady ? (
@@ -417,13 +319,6 @@ export function ResultView({
                 </ButtonLink>
               ) : null}
             </div>
-            {r.feedback ? (
-              <p className="mt-4 text-xs text-ink-3">
-                {r.feedback.source === "llm"
-                  ? `Feedback written by ${r.feedback.model}, then checked: every quote is your exact words and agrees with the judge${r.feedback.dropped ? ` (${r.feedback.dropped} unsupported item${r.feedback.dropped > 1 ? "s" : ""} removed)` : ""}.`
-                  : `Feedback (basic) · ${r.feedback.fallbackReason ?? "Built from the judge's results."}`}
-              </p>
-            ) : null}
 
             {/* ── One interaction away ── */}
             <div className="mt-16">
@@ -503,15 +398,6 @@ export function ResultView({
         ) : null}
       </div>
     </>
-  );
-}
-
-function Block({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section>
-      <h2 className="mb-5 text-2xs font-semibold uppercase tracking-[0.14em] text-ink-3">{title}</h2>
-      {children}
-    </section>
   );
 }
 
