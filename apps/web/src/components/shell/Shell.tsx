@@ -30,7 +30,11 @@ export async function Shell({ me, children, wide = false, bare = false }: { me: 
                 className="group inline-flex h-9 items-center gap-1.5 rounded-full border border-teal/70 px-3 text-base font-semibold text-teal no-underline min-[400px]:pl-4 min-[400px]:pr-3.5 transition-[background-color,border-color,color,transform] duration-200 ease-[var(--ease-water)] hover:border-teal hover:bg-teal hover:text-white active:translate-y-px"
               >
                 Sign in
-                <Icon name="arrow" size={14} className="hidden transition-transform duration-200 ease-[var(--ease-water)] group-hover:translate-x-0.5 min-[400px]:block" />
+                <Icon
+                  name="arrow"
+                  size={14}
+                  className="hidden transition-transform duration-200 ease-[var(--ease-water)] group-hover:translate-x-0.5 min-[400px]:block"
+                />
               </Link>
             </div>
           )}

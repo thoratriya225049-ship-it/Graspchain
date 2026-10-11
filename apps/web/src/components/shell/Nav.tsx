@@ -69,13 +69,21 @@ export function Nav({ me, system }: { me: Me; system?: React.ReactNode }) {
           <span className="mono block text-sm text-ink">{me.code}</span>
           <span className="block text-2xs uppercase tracking-[0.12em] text-ink-3">{me.role}</span>
         </span>
-        <button onClick={signOut} className="inline-flex h-9 items-center whitespace-nowrap rounded-full px-3.5 text-sm text-ink-3 transition-colors duration-200 hover:bg-paper-sunk hover:text-ink">
+        <button
+          onClick={signOut}
+          className="inline-flex h-9 items-center whitespace-nowrap rounded-full px-3.5 text-sm text-ink-3 transition-colors duration-200 hover:bg-paper-sunk hover:text-ink"
+        >
           Sign out
         </button>
       </div>
       <div className="flex items-center gap-1 lg:hidden">
         {system}
-        <button className="grid h-9 w-9 place-items-center rounded-full transition-colors duration-200 hover:bg-paper-sunk" aria-expanded={open} aria-controls="mobile-nav" onClick={() => setOpen((o) => !o)}>
+        <button
+          className="grid h-9 w-9 place-items-center rounded-full transition-colors duration-200 hover:bg-paper-sunk"
+          aria-expanded={open}
+          aria-controls="mobile-nav"
+          onClick={() => setOpen((o) => !o)}
+        >
           <Icon name={open ? "close" : "menu"} size={22} />
           <span className="sr-only">Menu</span>
         </button>

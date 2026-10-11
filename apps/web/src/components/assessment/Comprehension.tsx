@@ -54,9 +54,7 @@ export function ComprehensionReport({
 
   // Until the feedback arrives, the judge's labels already say which group each idea belongs to.
   const understood = f ? (f.understood ?? []) : keyPoints.filter((k) => k.label === "correct").map((k) => ({ keyPointId: k.id, evidence: "" }));
-  const missed = f
-    ? (f.missed ?? [])
-    : keyPoints.filter((k) => k.label === "absent" || k.label === "vague").map((k) => ({ keyPointId: k.id, whatToAdd: "" }));
+  const missed = f ? (f.missed ?? []) : keyPoints.filter((k) => k.label === "absent" || k.label === "vague").map((k) => ({ keyPointId: k.id, whatToAdd: "" }));
   const misread = f?.misunderstood ?? [];
   const steps = f?.couldBeBetter ?? [];
 
@@ -153,7 +151,11 @@ export function ComprehensionReport({
           </div>
           <ul
             className="-mx-2.5 mt-3 grid gap-1.5 sm:[grid-template-columns:var(--cols)]"
-            style={{ "--cols": keyPoints.length <= 5 ? keyPoints.map((k) => `minmax(0,${Math.max(1, k.weight)}fr)`).join(" ") : "repeat(3,minmax(0,1fr))" } as React.CSSProperties}
+            style={
+              {
+                "--cols": keyPoints.length <= 5 ? keyPoints.map((k) => `minmax(0,${Math.max(1, k.weight)}fr)`).join(" ") : "repeat(3,minmax(0,1fr))",
+              } as React.CSSProperties
+            }
           >
             {keyPoints.map((k) => {
               const spec = KP[k.label] ?? KP.absent;
@@ -188,7 +190,13 @@ export function ComprehensionReport({
 
       <div className="mt-14 space-y-16">
         {/* ── What you understood ── */}
-        <Group id="g-understood" tone="ok" icon="check" title="What you understood" meta={keyPoints.length ? `${nCorrect} of ${keyPoints.length} key ideas` : undefined}>
+        <Group
+          id="g-understood"
+          tone="ok"
+          icon="check"
+          title="What you understood"
+          meta={keyPoints.length ? `${nCorrect} of ${keyPoints.length} key ideas` : undefined}
+        >
           {understood.length ? (
             <ul className="[&>li:first-child>div]:border-t-0">
               {understood.map((u) => {
@@ -256,8 +264,15 @@ export function ComprehensionReport({
                 const id = `m-${i}`;
                 const claim = claimById.get(m.claimId);
                 const kp = claim?.keyPointIds[0];
-                const sources = (claim?.evidence ?? []).map<Link>((e) => ({ voice: "source", label: `The source · sentence ${e.sentence + 1}`, text: e.quote, quote: true }));
-                const judge: Link[] = claim ? [{ voice: "judge", label: `Judge · ${ruleOf(claim.rule)}`, text: plain(claim.note || claim.reasons[0] || "") }] : [];
+                const sources = (claim?.evidence ?? []).map<Link>((e) => ({
+                  voice: "source",
+                  label: `The source · sentence ${e.sentence + 1}`,
+                  text: e.quote,
+                  quote: true,
+                }));
+                const judge: Link[] = claim
+                  ? [{ voice: "judge", label: `Judge · ${ruleOf(claim.rule)}`, text: plain(claim.note || claim.reasons[0] || "") }]
+                  : [];
                 return (
                   <Item
                     key={id}
@@ -310,7 +325,13 @@ export function ComprehensionReport({
 
         {/* ── What to improve ── */}
         {steps.length || f?.nextStep ? (
-          <Group id="g-improve" tone="signal" icon="pen" title="What to improve" meta={steps.length ? `${steps.length} step${steps.length > 1 ? "s" : ""}` : undefined}>
+          <Group
+            id="g-improve"
+            tone="signal"
+            icon="pen"
+            title="What to improve"
+            meta={steps.length ? `${steps.length} step${steps.length > 1 ? "s" : ""}` : undefined}
+          >
             {steps.length ? (
               <ol className="pt-5">
                 {steps.map((c, i) => (
@@ -360,7 +381,8 @@ function missedThread(claims: ClaimDecision[], d: KeyPointDecision | undefined):
   const near = claims.find((c) => c.evidence.length);
   if (d?.studentQuote) links.push({ voice: "student", label: "Closest you came", text: d.studentQuote, quote: true });
   else if (near) links.push({ voice: "student", label: "Closest you came", text: near.text, quote: true });
-  if (near?.evidence[0]) links.push({ voice: "source", label: `The source · sentence ${near.evidence[0].sentence + 1}`, text: near.evidence[0].quote, quote: true });
+  if (near?.evidence[0])
+    links.push({ voice: "source", label: `The source · sentence ${near.evidence[0].sentence + 1}`, text: near.evidence[0].quote, quote: true });
   if (d) links.push({ voice: "judge", label: `Judge · ${ruleOf(d.rule)}`, text: plain(d.reason) });
   return links.filter((l) => l.text);
 }

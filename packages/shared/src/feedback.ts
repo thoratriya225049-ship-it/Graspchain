@@ -257,7 +257,8 @@ export function verdictSummary(ctx: Pick<FeedbackContext, "article" | "fused">):
   // Every gap, by kind: wrong first, then partial, then missing.
   const detail: string[] = [];
   if (wrong.length) detail.push(`You misunderstood ${list(wrong)}.`);
-  if (contradicted && !wrong.length) detail.push(`${contradicted === 1 ? "One of your claims contradicts" : `${contradicted} of your claims contradict`} the source.`);
+  if (contradicted && !wrong.length)
+    detail.push(`${contradicted === 1 ? "One of your claims contradicts" : `${contradicted} of your claims contradict`} the source.`);
   if (partial.length) detail.push(`You only partly explain ${list(partial)}: ${partial.length > 1 ? "they are" : "it is"} mentioned but not fully explained.`);
   if (absent.length) detail.push(`Your answer does not explain ${list(absent, "or")}.`);
 

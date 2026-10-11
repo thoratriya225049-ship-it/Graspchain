@@ -88,7 +88,11 @@ export function ChainFlowStory({ ex, tone = "dark" }: { ex: StoryExample; tone?:
       body: (
         <div className="space-y-1">
           <p className={`text-xs ${text2}`}>SHA-256 of this example</p>
-          <DecryptText value={hash ? `${hash.slice(0, 20)}…` : "…"} start={step >= 4 && !!hash} className={`block text-sm ${light ? "text-teal" : "text-aqua"}`} />
+          <DecryptText
+            value={hash ? `${hash.slice(0, 20)}…` : "…"}
+            start={step >= 4 && !!hash}
+            className={`block text-sm ${light ? "text-teal" : "text-aqua"}`}
+          />
           <p className={`text-xs ${text2}`}>{ex.chainName} · salted, no names</p>
         </div>
       ),
@@ -99,7 +103,10 @@ export function ChainFlowStory({ ex, tone = "dark" }: { ex: StoryExample; tone?:
     <div ref={ref}>
       <div className="relative">
         {/* the thread */}
-        <div aria-hidden className={`absolute left-[11px] top-3 bottom-3 w-px ${light ? "bg-abyss/15" : "bg-white/12"} md:left-0 md:right-0 md:top-[11px] md:bottom-auto md:h-px md:w-auto`} />
+        <div
+          aria-hidden
+          className={`absolute left-[11px] top-3 bottom-3 w-px ${light ? "bg-abyss/15" : "bg-white/12"} md:left-0 md:right-0 md:top-[11px] md:bottom-auto md:h-px md:w-auto`}
+        />
         <motion.div
           aria-hidden
           className="absolute left-[11px] top-3 w-px md:hidden"

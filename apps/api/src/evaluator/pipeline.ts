@@ -374,7 +374,8 @@ export class Evaluator {
             llm.feedback(
               fctx,
               // The streamed draft already carries the evidence-based headline, so the LLM's own never flashes up.
-              (partial) => !hidden && attempt === 0 && this.emit(attemptId, { type: "feedback", data: { partial: { ...(partial as object), oneLineSummary: verdict } } }),
+              (partial) =>
+                !hidden && attempt === 0 && this.emit(attemptId, { type: "feedback", data: { partial: { ...(partial as object), oneLineSummary: verdict } } }),
               signal,
               attempt,
             ),

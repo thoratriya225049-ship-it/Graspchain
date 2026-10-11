@@ -113,7 +113,9 @@ describe("evidence-first summary", () => {
   it("says 'main idea, but concepts are missing' when only the main idea is there", () => {
     const f = fusedWith({ kp: { kp1: "absent", kp2: "absent", kp3: "absent", kp4: "absent" }, mainPurpose: 0.9 });
     const v = verdictSummary({ article, fused: f });
-    expect(v).toMatch(/^You identified the main idea, but several important concepts are missing\. Your answer does not explain .+ or “the root reveals nothing”\. Add these concepts/);
+    expect(v).toMatch(
+      /^You identified the main idea, but several important concepts are missing\. Your answer does not explain .+ or “the root reveals nothing”\. Add these concepts/,
+    );
   });
   it("calls partial understanding partial", () => {
     const f = fusedWith({ kp: { kp2: "vague" } });
