@@ -3,6 +3,7 @@ import { ChainFlowStory } from "@/components/fx/ChainFlow";
 import { ColourfulText } from "@/components/fx/ColourfulText";
 import { OutlineMarquee } from "@/components/fx/OutlineMarquee";
 import { Cta4, type CtaActivity, type CtaMetric } from "@/components/home/Cta4";
+import { FairJourney } from "@/components/home/FairJourney";
 import { HomeHero } from "@/components/home/HomeHero";
 import { Shell } from "@/components/shell/Shell";
 import { getConfig, getMe, homeFor } from "@/lib/api";
@@ -148,22 +149,35 @@ export default async function Landing() {
 
       {/* Full-bleed Mint band; the content keeps to the page frame so it lines up with the sections above. */}
       <section className="bg-mint" aria-labelledby="fair">
-        <div className="frame grid gap-10 py-14 md:grid-cols-[minmax(0,0.8fr)_minmax(0,2fr)] md:py-20">
-          <h2 id="fair" className="display text-[clamp(1.75rem,3vw,2.5rem)]">
-            Fair by construction
-          </h2>
-          <dl className="grid gap-8 sm:grid-cols-3">
-            {[
-              ["Same chance to enter", "Everyone joining in the same short window is ordered by a seeded shuffle, not connection speed."],
-              ["Same time to read", `The clock starts when the passage has arrived; up to ${cfg?.fairclockCapS ?? 10} s of network delay is given back.`],
-              ["Same grader", "One pinned judge and one fixed formula for every answer, with a receipt to prove it."],
-            ].map(([h, b]) => (
-              <div key={h}>
-                <dt className="font-serif text-lg">{h}</dt>
-                <dd className="mt-2 text-sm leading-relaxed text-ink-2">{b}</dd>
-              </div>
-            ))}
-          </dl>
+        <div className="frame py-16 md:py-24">
+          <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] md:items-end">
+            <h2 id="fair" className="display text-[clamp(2rem,4vw,3rem)]">
+              Fair by construction
+            </h2>
+            <p className="max-w-lg text-[0.9375rem] text-ink-2">Every answer meets the same three guarantees, in this order.</p>
+          </div>
+          <FairJourney
+            steps={[
+              {
+                tag: "Equal entry",
+                title: "Same chance to enter",
+                body: "Everyone joining in the same short window is ordered by a seeded shuffle, not connection speed.",
+                mark: "shuffle",
+              },
+              {
+                tag: "Equal reading",
+                title: "Same time to read",
+                body: `The clock starts when the passage has arrived; up to ${cfg?.fairclockCapS ?? 10} s of network delay is given back.`,
+                mark: "clock",
+              },
+              {
+                tag: "Consistent judgement",
+                title: "Same grader",
+                body: "One pinned judge and one fixed formula for every answer, with a receipt to prove it.",
+                mark: "scales",
+              },
+            ]}
+          />
         </div>
       </section>
 

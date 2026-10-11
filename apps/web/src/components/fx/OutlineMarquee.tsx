@@ -1,30 +1,43 @@
 "use client";
 
+import { motion, useScroll, useTransform } from "motion/react";
+import { useState } from "react";
 import { useCalm, useOnScreen } from "./hooks";
 
 /**
  * One slow band of oversized outlined type — adapted from Aceternity Labs "Wispr Flow Text
- * Animation". SVG text so each stage word can be stroked in its own stage colour
- * (Understand Sky · Evidence Aqua · Decision Teal · Proof Abyss). Pauses offscreen; still under
- * reduced motion. Decorative: the sentence is given once to assistive tech.
+ * Animation" — set on a deep forest-teal band as the landing page's signature moment. Each stage
+ * word is stroked in its stage colour, lifted for the dark ground (Understand Sky · Evidence Aqua ·
+ * Decision light Teal · Proof near-white). The band drifts a little with scroll; hovering pauses it
+ * and fills the word under the pointer with a quiet tint of its own colour. Pauses offscreen; still
+ * under reduced motion. Decorative: the sentence is given once to assistive tech.
  */
 const WORDS = [
-  { w: "Understand", c: "#7cc3e6" },
-  { w: "Evidence", c: "#3fb3ac" },
-  { w: "Decision", c: "#12708A" },
-  { w: "Proof", c: "#0B3A4A" },
+  { w: "Understand", c: "#AEDFF7" },
+  { w: "Evidence", c: "#6ACCC6" },
+  { w: "Decision", c: "#4FB3C9" },
+  { w: "Proof", c: "#EAF8F7" },
 ];
+
+/** Fine grain, a few percent strong: tonal depth without a visible pattern. */
+const GRAIN =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")";
 
 function Run() {
   return (
     <span
       aria-hidden
-      className="flex shrink-0 items-center whitespace-nowrap pr-[0.35em] font-serif text-[clamp(4.5rem,11vw,9.5rem)] leading-none tracking-[-0.03em]"
+      className="flex shrink-0 items-center whitespace-nowrap pr-[0.35em] font-serif text-[clamp(5rem,13vw,11rem)] leading-none tracking-[-0.03em]"
     >
       {WORDS.map((x) => (
         <span key={x.w} className="flex items-center">
-          <span style={{ WebkitTextStroke: `1.4px ${x.c}`, color: "transparent" }}>{x.w}</span>
-          <span className="px-[0.28em] text-[0.5em]" style={{ WebkitTextStroke: "1.2px #9db6bc", color: "transparent" }}>
+          <span
+            className="text-transparent transition-[color] duration-700 ease-[var(--ease-water)] hover:[color:var(--fill)]"
+            style={{ WebkitTextStroke: `1.5px ${x.c}`, ["--fill" as string]: `color-mix(in srgb, ${x.c} 20%, transparent)` }}
+          >
+            {x.w}
+          </span>
+          <span className="px-[0.28em] text-[0.5em] text-transparent" style={{ WebkitTextStroke: "1.2px rgb(143 180 187 / 0.55)" }}>
             →
           </span>
         </span>
@@ -35,24 +48,49 @@ function Run() {
 
 export function OutlineMarquee() {
   const { still } = useCalm();
-  const [ref, onScreen] = useOnScreen<HTMLDivElement>();
+  const [ref, onScreen] = useOnScreen<HTMLElement>();
+  const [hover, setHover] = useState(false);
+  // A slight drift tied to scroll, layered on the slow loop, so the band answers the reader.
+  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] });
+  const drift = useTransform(scrollYProgress, [0, 1], ["4%", "-11%"]);
+
   return (
-    <div ref={ref} className="relative overflow-hidden py-6" role="img" aria-label="Understand, then evidence, then decision, then proof.">
-      <div
-        className="flex w-max"
+    <section
+      ref={ref}
+      className="relative isolate overflow-hidden py-16 md:py-24"
+      style={{
+        background:
+          "radial-gradient(70% 120% at 12% 0%, rgb(63 179 172 / 0.16), transparent 60%), radial-gradient(60% 110% at 92% 100%, rgb(18 112 138 / 0.28), transparent 65%), linear-gradient(180deg, #062A2E 0%, #08353A 55%, #062B30 100%)",
+      }}
+      role="img"
+      aria-label="Understand, then evidence, then decision, then proof."
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
+    >
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 opacity-[0.07] mix-blend-overlay" style={{ backgroundImage: GRAIN }} />
+      <div aria-hidden className="absolute inset-x-0 top-0 h-px bg-aqua/20" />
+      <div aria-hidden className="absolute inset-x-0 bottom-0 h-px bg-aqua/10" />
+      <motion.div
         style={{
-          animationName: still ? "none" : "marquee",
-          animationDuration: "70s",
-          animationTimingFunction: "linear",
-          animationIterationCount: "infinite",
-          animationPlayState: onScreen ? "running" : "paused",
+          x: still ? 0 : drift,
+          maskImage: "linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent)",
+          WebkitMaskImage: "linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent)",
         }}
       >
-        <Run />
-        <Run />
-      </div>
-      <div aria-hidden className="pointer-events-none absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-paper to-transparent" />
-      <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-paper to-transparent" />
-    </div>
+        <div
+          className="flex w-max"
+          style={{
+            animationName: still ? "none" : "marquee",
+            animationDuration: "56s",
+            animationTimingFunction: "linear",
+            animationIterationCount: "infinite",
+            animationPlayState: onScreen && !hover ? "running" : "paused",
+          }}
+        >
+          <Run />
+          <Run />
+        </div>
+      </motion.div>
+    </section>
   );
 }
