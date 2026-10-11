@@ -69,7 +69,7 @@ export function SystemStatus({ config, tone = "light" }: { config: PublicConfig 
         aria-expanded={open}
         aria-controls={id}
         onClick={() => setOpen((o) => !o)}
-        className={`inline-flex h-8 items-center gap-2 rounded-full px-3 text-xs font-medium transition-colors ${dark ? "text-on-dark-2 hover:bg-white/8 hover:text-on-dark" : "text-ink-3 hover:bg-mint hover:text-ink"}`}
+        className={`inline-flex h-9 items-center gap-2 rounded-full px-2.5 text-sm font-medium transition-colors duration-200 min-[400px]:px-3.5 ${dark ? "text-on-dark-2 hover:bg-white/8 hover:text-on-dark" : "bg-mint text-ink-2 hover:bg-sky/45 hover:text-ink"}`}
       >
         <Dot tone={dotTone} />
         System

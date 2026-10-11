@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getConfig } from "@/lib/api";
 import type { Me } from "@/lib/types";
+import { Icon } from "../ui/Icon";
 import { Nav } from "./Nav";
 import { ServerUnreachable, SystemStatus } from "./SystemRail";
 import { Wordmark } from "./Wordmark";
@@ -10,21 +11,26 @@ export async function Shell({ me, children, wide = false, bare = false }: { me: 
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-30 border-b border-rule bg-paper">
-        <div className="frame flex h-16 items-center justify-between gap-6">
+        {/* Full width: the brand anchored far left, status and actions grouped far right. */}
+        <div className="flex h-16 w-full items-center justify-between gap-4 px-4 sm:px-6">
           <Wordmark href={me ? (me.role === "student" ? "/home" : me.role === "teacher" ? "/teacher" : "/admin") : "/"} />
           {me ? (
             <Nav me={me} system={<SystemStatus config={config} />} />
           ) : (
-            <div className="flex items-center gap-1 text-[0.9375rem] sm:gap-2">
+            <div className="flex items-center gap-0.5 min-[400px]:gap-1.5 sm:gap-3">
               <SystemStatus config={config} />
               <Link
                 href="/verify"
-                className="hidden rounded-full px-3.5 py-2 text-ink-3 no-underline transition-colors hover:bg-paper-sunk hover:text-ink sm:inline-flex"
+                className="hidden h-9 items-center rounded-full px-3 text-base font-medium text-ink-2 no-underline transition-colors duration-200 hover:bg-paper-sunk hover:text-ink sm:inline-flex"
               >
                 Verify a receipt
               </Link>
-              <Link href="/login" className="rounded-full border border-teal px-4 py-1.5 font-medium text-teal no-underline transition-colors hover:bg-mint">
+              <Link
+                href="/login"
+                className="group inline-flex h-9 items-center gap-1.5 rounded-full border border-teal/70 px-3 text-base font-semibold text-teal no-underline min-[400px]:pl-4 min-[400px]:pr-3.5 transition-[background-color,border-color,color,transform] duration-200 ease-[var(--ease-water)] hover:border-teal hover:bg-teal hover:text-white active:translate-y-px"
+              >
                 Sign in
+                <Icon name="arrow" size={14} className="hidden transition-transform duration-200 ease-[var(--ease-water)] group-hover:translate-x-0.5 min-[400px]:block" />
               </Link>
             </div>
           )}

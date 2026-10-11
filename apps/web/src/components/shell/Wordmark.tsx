@@ -14,11 +14,11 @@ export function Wordmark({ href = "/", tone = "ink" }: { href?: string; tone?: "
   return (
     <Link
       href={href}
-      className={`inline-flex items-center gap-2.5 rounded-lg no-underline ${tone === "paper" ? "text-on-dark" : "text-ink"}`}
+      className={`inline-flex shrink-0 items-center gap-2.5 rounded-lg no-underline transition-opacity duration-200 hover:opacity-80 ${tone === "paper" ? "text-on-dark" : "text-ink"}`}
       aria-label="Graspchain home"
     >
       <Mark tone={tone} />
-      <span className="font-serif text-[1.375rem] font-medium leading-none tracking-[-0.03em]">Graspchain</span>
+      <span className="font-serif text-[1.375rem] font-semibold min-[400px]:text-[1.5rem] leading-none tracking-[-0.03em]">Graspchain</span>
     </Link>
   );
 }
