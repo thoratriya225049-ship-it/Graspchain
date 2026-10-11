@@ -111,7 +111,7 @@ async function main() {
   run("verifier", "node", ["serve.mjs"], path.join(root, "apps/verifier"));
 
   run("api", "pnpm", ["--filter", "api", "run", prod ? "start" : "dev"], root);
-  await waitFor("the API", async () => (await fetch("http://127.0.0.1:4000/healthz", { signal: AbortSignal.timeout(2000) })).ok);
+  await waitFor("the API", async () => (await fetch("http://127.0.0.1:4000/healthz", { signal: AbortSignal.timeout(2000) })).ok, 180_000);
 
   if (prod) sh("web", "pnpm", ["--filter", "web", "run", "build"], root);
   run("web", "pnpm", ["--filter", "web", "run", prod ? "start" : "dev"], root);
