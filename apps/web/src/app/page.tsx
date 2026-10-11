@@ -96,10 +96,10 @@ export default async function Landing() {
     <Shell me={null} bare>
       <HomeHero ex={ex} chain={chainName} registry={cfg?.chain.registry ?? null} capS={cfg?.fairclockCapS ?? 10} />
 
-      {/* A lighter layer slides up over the hero: Sky (the tint inside "proven.") easing into Paper, so the
+      {/* A lighter, full-width layer over the hero (square edges): Sky (the tint inside "proven.") easing into Paper, so the
           next section reads as new without a hard line, and hands off cleanly to the marquee below. */}
       <section
-        className="relative z-10 -mt-10 rounded-t-2xl md:-mt-14 md:rounded-t-[48px]"
+        className="relative z-10 -mt-10 md:-mt-14"
         style={{
           background: "linear-gradient(180deg, #CDE8F4 0%, #DDF0F6 38%, #EEF8F9 72%, var(--color-paper) 100%)",
           boxShadow: "0 -28px 60px -36px rgb(4 22 30 / 0.55), inset 0 1px 0 rgb(255 255 255 / 0.55)",
@@ -146,8 +146,9 @@ export default async function Landing() {
         </ol>
       </section>
 
-      <section className="frame pb-8" aria-labelledby="fair">
-        <div className="panel grid gap-10 px-6 py-10 md:grid-cols-[minmax(0,0.8fr)_minmax(0,2fr)] md:px-10 md:py-14">
+      {/* Full-bleed Mint band; the content keeps to the page frame so it lines up with the sections above. */}
+      <section className="bg-mint" aria-labelledby="fair">
+        <div className="frame grid gap-10 py-14 md:grid-cols-[minmax(0,0.8fr)_minmax(0,2fr)] md:py-20">
           <h2 id="fair" className="display text-[clamp(1.75rem,3vw,2.5rem)]">
             Fair by construction
           </h2>
