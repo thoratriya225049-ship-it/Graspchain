@@ -11,11 +11,13 @@ import { useCalm, useOnScreen } from "./hooks";
  * Screen readers get the word once; the per-letter layer is hidden from them.
  */
 const PALETTE = ["#AEDFF7", "#6ACCC6", "#B0BCE3", "#AB9BCB", "#AEDFF7", "#6ACCC6"];
+/** On Sky / Paper: the deep end of the same families (Teal, deep Aqua, Abyss, deep Lavender), all AA as large text there. */
+const PALETTE_LIGHT = ["#12708A", "#2E8F8A", "#0B3A4A", "#6F5E9E", "#12708A", "#2E8F8A"];
 
-export function ColourfulText({ text, className = "" }: { text: string; className?: string }) {
+export function ColourfulText({ text, className = "", tone = "dark" }: { text: string; className?: string; tone?: "dark" | "light" }) {
   const { still } = useCalm();
   const [ref, onScreen] = useOnScreen<HTMLSpanElement>();
-  const [colors, setColors] = useState(PALETTE);
+  const [colors, setColors] = useState(tone === "light" ? PALETTE_LIGHT : PALETTE);
   const [cycle, setCycle] = useState(0);
 
   useEffect(() => {
@@ -29,7 +31,7 @@ export function ColourfulText({ text, className = "" }: { text: string; classNam
 
   if (still)
     return (
-      <span ref={ref} className={`text-aqua ${className}`}>
+      <span ref={ref} className={`${tone === "light" ? "text-teal" : "text-aqua"} ${className}`}>
         {text}
       </span>
     );

@@ -34,8 +34,13 @@ const STEP_MS = 1500;
  * A Lavender claim travels to its Aqua evidence, becomes a Teal verdict and is sealed into an
  * Abyss receipt. The hash on the slip is a real SHA-256 of the example, computed in the browser.
  */
-export function ChainFlowStory({ ex }: { ex: StoryExample }) {
+export function ChainFlowStory({ ex, tone = "dark" }: { ex: StoryExample; tone?: "dark" | "light" }) {
   const { still } = useCalm();
+  // Light tone sits on Sky/Paper: ink text, labels in deep ink, the thread ending in Abyss instead of near-white.
+  const light = tone === "light";
+  const text = light ? "text-ink" : "text-on-dark";
+  const text2 = light ? "text-ink-2" : "text-on-dark-2";
+  const end = light ? "#0B3A4A" : "#EAF8F7";
   const [ref, seen] = useSeenOnce<HTMLDivElement>(0.45);
   const [step, setStep] = useState(still ? 4 : 0);
   const [run, setRun] = useState(0);
@@ -57,23 +62,23 @@ export function ChainFlowStory({ ex }: { ex: StoryExample }) {
     {
       key: "claim",
       title: "A claim, in the student's words",
-      body: <p className="font-serif text-[1.0625rem] leading-snug text-on-dark">“{ex.claim}”</p>,
+      body: <p className={`font-serif text-[1.0625rem] leading-snug ${text}`}>“{ex.claim}”</p>,
     },
     {
       key: "evidence",
       title: `Evidence · sentence ${ex.sentenceNo}`,
-      body: <p className="font-serif text-[1.0625rem] leading-snug text-on-dark">“{ex.quote}”</p>,
+      body: <p className={`font-serif text-[1.0625rem] leading-snug ${text}`}>“{ex.quote}”</p>,
     },
     {
       key: "decision",
       title: "Decision · rules, not opinion",
       body: (
-        <p className="flex items-center gap-2 text-on-dark">
+        <p className={`flex items-center gap-2 ${text}`}>
           <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-ok-mark text-white">
             <Icon name="check" size={14} />
           </span>
           <span className="text-lg font-medium">{ex.verdict}</span>
-          <span className="mono text-xs text-on-dark-2">{ex.rule}</span>
+          <span className={`mono text-xs ${text2}`}>{ex.rule}</span>
         </p>
       ),
     },
@@ -82,9 +87,9 @@ export function ChainFlowStory({ ex }: { ex: StoryExample }) {
       title: "Proof · sealed on-chain",
       body: (
         <div className="space-y-1">
-          <p className="text-xs text-on-dark-2">SHA-256 of this example</p>
-          <DecryptText value={hash ? `${hash.slice(0, 20)}…` : "…"} start={step >= 4 && !!hash} className="block text-sm text-aqua" />
-          <p className="text-xs text-on-dark-2">{ex.chainName} · salted, no names</p>
+          <p className={`text-xs ${text2}`}>SHA-256 of this example</p>
+          <DecryptText value={hash ? `${hash.slice(0, 20)}…` : "…"} start={step >= 4 && !!hash} className={`block text-sm ${light ? "text-teal" : "text-aqua"}`} />
+          <p className={`text-xs ${text2}`}>{ex.chainName} · salted, no names</p>
         </div>
       ),
     },
@@ -94,11 +99,11 @@ export function ChainFlowStory({ ex }: { ex: StoryExample }) {
     <div ref={ref}>
       <div className="relative">
         {/* the thread */}
-        <div aria-hidden className="absolute left-[11px] top-3 bottom-3 w-px bg-white/12 md:left-0 md:right-0 md:top-[11px] md:bottom-auto md:h-px md:w-auto" />
+        <div aria-hidden className={`absolute left-[11px] top-3 bottom-3 w-px ${light ? "bg-abyss/15" : "bg-white/12"} md:left-0 md:right-0 md:top-[11px] md:bottom-auto md:h-px md:w-auto`} />
         <motion.div
           aria-hidden
           className="absolute left-[11px] top-3 w-px md:hidden"
-          style={{ background: "linear-gradient(180deg, #AB9BCB, #6ACCC6 40%, #12708A 72%, #EAF8F7)" }}
+          style={{ background: `linear-gradient(180deg, #AB9BCB, #6ACCC6 40%, #12708A 72%, ${end})` }}
           initial={false}
           animate={{ height: `${(Math.max(0, step - 1) / 3) * 88}%` }}
           transition={{ duration: 1, ease: [0.22, 0.8, 0.2, 1] }}
@@ -106,7 +111,7 @@ export function ChainFlowStory({ ex }: { ex: StoryExample }) {
         <motion.div
           aria-hidden
           className="absolute left-0 top-[11px] hidden h-px md:block"
-          style={{ background: "linear-gradient(90deg, #AB9BCB, #6ACCC6 40%, #12708A 72%, #EAF8F7)" }}
+          style={{ background: `linear-gradient(90deg, #AB9BCB, #6ACCC6 40%, #12708A 72%, ${end})` }}
           initial={false}
           animate={{ width: `${(Math.max(0, step - 1) / 3) * 76.5}%` }}
           transition={{ duration: 1, ease: [0.22, 0.8, 0.2, 1] }}
@@ -120,13 +125,13 @@ export function ChainFlowStory({ ex }: { ex: StoryExample }) {
                 <span aria-hidden className="absolute left-0 top-0 flex h-[23px] w-[23px] items-center justify-center rounded-full md:left-0">
                   <motion.span
                     className="absolute inset-0 rounded-full border"
-                    style={{ borderColor: s.key === "proof" ? "#6ACCC6" : FLOW[s.key].color }}
+                    style={{ borderColor: s.key === "proof" ? (light ? "#0B3A4A" : "#6ACCC6") : FLOW[s.key].color }}
                     animate={{ scale: lit ? 1 : 0.7, opacity: lit ? 1 : 0.4 }}
                     transition={{ duration: 0.4 }}
                   />
                   <motion.span
                     className="h-[11px] w-[11px] rounded-full"
-                    style={{ background: s.key === "proof" ? "#EAF8F7" : FLOW[s.key].color }}
+                    style={{ background: s.key === "proof" ? end : FLOW[s.key].color }}
                     animate={{ scale: lit ? 1 : 0, opacity: lit ? 1 : 0 }}
                     transition={{ duration: 0.45, ease: [0.22, 0.8, 0.2, 1] }}
                   />
@@ -137,14 +142,18 @@ export function ChainFlowStory({ ex }: { ex: StoryExample }) {
                   transition={{ duration: 0.5, ease: [0.22, 0.8, 0.2, 1] }}
                   className="rounded-[18px] p-4 ring-1"
                   style={{
-                    background: s.key === "proof" ? "rgb(234 248 247 / 0.04)" : `color-mix(in srgb, ${FLOW[s.key].color} 12%, transparent)`,
+                    background: light
+                      ? `color-mix(in srgb, ${s.key === "proof" ? "#0B3A4A" : FLOW[s.key].color} ${s.key === "proof" ? 5 : 12}%, rgb(255 255 255 / 0.62))`
+                      : s.key === "proof"
+                        ? "rgb(234 248 247 / 0.04)"
+                        : `color-mix(in srgb, ${FLOW[s.key].color} 12%, transparent)`,
                     // ring colour follows the stage
-                    boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${s.key === "proof" ? "#6ACCC6" : FLOW[s.key].color} 40%, transparent)`,
+                    boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${s.key === "proof" ? (light ? "#0B3A4A" : "#6ACCC6") : FLOW[s.key].color} ${light ? 30 : 40}%, transparent)`,
                   }}
                 >
                   <p
                     className="text-2xs font-semibold uppercase tracking-[0.14em]"
-                    style={{ color: s.key === "decision" ? "#6ACCC6" : s.key === "proof" ? "#AEDFF7" : FLOW[s.key].color }}
+                    style={{ color: light ? "#3F6672" : s.key === "decision" ? "#6ACCC6" : s.key === "proof" ? "#AEDFF7" : FLOW[s.key].color }}
                   >
                     {s.title}
                   </p>
@@ -162,14 +171,14 @@ export function ChainFlowStory({ ex }: { ex: StoryExample }) {
               aria-hidden
               className="absolute left-[6px] top-[6px] hidden h-3 w-3 rounded-full md:block"
               initial={{ left: "0%", background: "#AB9BCB" }}
-              animate={{ left: ["0%", "25.5%", "51%", "76.5%"], background: ["#AB9BCB", "#6ACCC6", "#12708A", "#EAF8F7"] }}
+              animate={{ left: ["0%", "25.5%", "51%", "76.5%"], background: ["#AB9BCB", "#6ACCC6", "#12708A", end] }}
               exit={{ opacity: 0 }}
               transition={{ duration: (STEP_MS * 3) / 1000 + 0.6, ease: [0.45, 0, 0.25, 1], times: [0, 0.34, 0.67, 1] }}
             />
           ) : null}
         </AnimatePresence>
       </div>
-      <div className="mt-8 flex flex-wrap items-center justify-between gap-4 text-xs text-on-dark-2">
+      <div className={`mt-8 flex flex-wrap items-center justify-between gap-4 text-xs ${text2}`}>
         <p>
           Example from article <span className="mono">{ex.articleId}</span> and its prepared demo answer.
         </p>
@@ -177,7 +186,7 @@ export function ChainFlowStory({ ex }: { ex: StoryExample }) {
           <button
             type="button"
             onClick={() => setRun((n) => n + 1)}
-            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-on-dark ring-1 ring-white/15 transition-colors hover:bg-white/5"
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 ring-1 transition-colors ${light ? "text-ink ring-abyss/20 hover:bg-white/70" : "text-on-dark ring-white/15 hover:bg-white/5"}`}
           >
             <Icon name="replay" size={14} /> Replay
           </button>

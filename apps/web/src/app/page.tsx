@@ -96,17 +96,26 @@ export default async function Landing() {
     <Shell me={null} bare>
       <HomeHero ex={ex} chain={chainName} registry={cfg?.chain.registry ?? null} capS={cfg?.fairclockCapS ?? 10} />
 
-      <section className="on-abyss border-t border-white/10" aria-labelledby="trail">
+      {/* A lighter layer slides up over the hero: Sky (the tint inside "proven.") easing into Paper, so the
+          next section reads as new without a hard line, and hands off cleanly to the marquee below. */}
+      <section
+        className="relative z-10 -mt-10 rounded-t-2xl md:-mt-14 md:rounded-t-[48px]"
+        style={{
+          background: "linear-gradient(180deg, #CDE8F4 0%, #DDF0F6 38%, #EEF8F9 72%, var(--color-paper) 100%)",
+          boxShadow: "0 -28px 60px -36px rgb(4 22 30 / 0.55), inset 0 1px 0 rgb(255 255 255 / 0.55)",
+        }}
+        aria-labelledby="trail"
+      >
         <div className="frame py-20 md:py-28">
           <div className="max-w-2xl">
-            <p className="text-2xs font-semibold uppercase tracking-[0.2em] text-sky">The chain</p>
-            <h2 id="trail" className="display mt-4 text-[clamp(2.25rem,5vw,3.5rem)] text-on-dark">
-              Every answer leaves a trail you can <ColourfulText text="check" />.
+            <p className="text-2xs font-semibold uppercase tracking-[0.2em] text-teal">The chain</p>
+            <h2 id="trail" className="display mt-4 text-[clamp(2.25rem,5vw,3.5rem)] text-ink">
+              Every answer leaves a trail you can <ColourfulText text="check" tone="light" />.
             </h2>
-            <p className="mt-4 text-md text-on-dark-2">One claim, followed from the student&rsquo;s words to a sealed receipt.</p>
+            <p className="mt-4 text-md text-ink-2">One claim, followed from the student&rsquo;s words to a sealed receipt.</p>
           </div>
           <div className="mt-14">
-            <ChainFlowStory ex={ex} />
+            <ChainFlowStory ex={ex} tone="light" />
           </div>
         </div>
       </section>
@@ -120,7 +129,7 @@ export default async function Landing() {
           </h2>
           <p className="max-w-lg text-[0.9375rem] text-ink-2">Who may touch the number at each step is the whole design.</p>
         </div>
-        <ol className="mt-12 grid gap-px overflow-hidden rounded-[24px] bg-rule md:grid-cols-5">
+        <ol className="mt-12 grid gap-px overflow-hidden rounded-3xl bg-rule md:grid-cols-5">
           {pipeline(cfg).map((s, i) => (
             <li key={s.who + s.verb} className="flex flex-col bg-paper p-6">
               <span className="flex items-center gap-2">
