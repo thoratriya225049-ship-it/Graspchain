@@ -21,7 +21,7 @@ for (const delayS of [1, 3, 12]) {
     await page.goto("/start/A2");
     await page.getByRole("button", { name: "Open the article" }).click();
     await page.waitForURL(/\/session\//, { timeout: 60_000 });
-    await expect(page.getByText(/delivery delay of/)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/for delivery/)).toBeVisible({ timeout: 30_000 });
     const sid = page.url().split("/").pop()!;
     const s = await (await page.request.get(`/api/session/${sid}`)).json();
     const comp = s.latencyCompMs / 1000;

@@ -4,8 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { INTEGRITY_LIMITS, createSseParser, wordCount } from "@graspchain/shared";
+import { motion, useScroll, useSpring } from "motion/react";
+import { JourneySteps, JourneyThread } from "@/components/fx/JourneyThread";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Bits";
+import { Icon } from "@/components/ui/Icon";
+import { Reveal, Sheet } from "@/components/ui/Sheet";
 import { call, newKey, store } from "@/lib/http";
 import { IntegrityMonitor, requestFullscreen, type MonitorNotice } from "@/lib/integrity";
 import type { SessionView } from "@/lib/types";
@@ -64,6 +68,8 @@ export function SessionFlow({
   monitorRef.current ??= new IntegrityMonitor(sessionId);
   const monitor = monitorRef.current;
   const [notices, setNotices] = useState<MonitorNotice[]>([]);
+  const [noted, setNoted] = useState<{ id: MonitorNotice["id"]; message: string }[]>([]);
+  const [tipsOpen, setTipsOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [fullscreenSupported, setFullscreenSupported] = useState(false);
   const [windowActive, setWindowActive] = useState(true);
@@ -158,6 +164,7 @@ export function SessionFlow({
     if (!monitoring) return;
     monitor.onNotice = (n) => {
       setNotices((xs) => [...xs.slice(-2), n]);
+      setNoted((xs) => [...xs, { id: n.id, message: n.message }]);
       window.setTimeout(() => setNotices((xs) => xs.filter((x) => x.id !== n.id)), 7000);
     };
     monitor.onScreenshotAttempt = () => {
@@ -293,8 +300,8 @@ export function SessionFlow({
   if (phase === "expired")
     return (
       <div className="frame-narrow pt-24">
-        <p className="eyebrow">Session expired</p>
-        <h1 className="mt-3 font-serif text-2xl">This session is no longer open.</h1>
+        <p className="eyebrow">Session closed</p>
+        <h1 className="display mt-3 text-[clamp(2rem,4vw,2.75rem)]">This session is no longer open.</h1>
         <p className="mt-4 text-ink-2">
           Sessions close if the article is never opened, or if no answer arrives within the writing window. Start again for a fresh session.
         </p>
@@ -307,25 +314,10 @@ export function SessionFlow({
   if (phase === "reading" || phase === "closing")
     return (
       <div>
-        <div className="sticky top-0 z-20 border-b border-rule bg-paper">
-          <div className="h-[3px] w-full bg-paper-deep" aria-hidden>
-            <div
-              className={`h-full origin-left ${low ? "bg-signal" : "bg-ink"} transition-[width] duration-200 ease-linear`}
-              style={{ width: `${frac * 100}%` }}
-            />
-          </div>
-          <div className="frame flex h-14 items-center justify-between gap-4">
-            <div className="flex items-baseline gap-3" role="timer" aria-live="off">
-              <span className={`num mono text-xl ${low ? "text-signal-ink" : "text-ink"}`}>{remaining === null ? "–:––" : clock(remaining)}</span>
-              <span className="hidden text-sm text-ink-3 sm:inline">left to read</span>
-            </div>
-            <p className="hidden text-xs text-ink-3 md:block">
-              {session.clockMode === "fair"
-                ? acked
-                  ? `Fair clock · delivery delay of ${((session.latencyCompMs ?? 0) / 1000).toFixed(1)} s added back`
-                  : "Fair clock · measuring delivery…"
-                : "Server clock only (comparison mode)"}
-            </p>
+        <JourneyThread stage="understand" />
+        <div className="sticky top-0 z-20 border-b border-rule bg-paper/95">
+          <div className="frame flex h-16 items-center justify-between gap-4">
+            <FairClock remaining={remaining} frac={frac} low={low} acked={acked} mode={session.clockMode} compMs={session.latencyCompMs ?? 0} />
             <div className="flex items-center gap-2">
               {fullscreenSupported && !fullscreen ? (
                 <Button size="sm" variant="quiet" onClick={() => void requestFullscreen()}>
@@ -337,11 +329,7 @@ export function SessionFlow({
               </Button>
             </div>
           </div>
-          {low && phase === "reading" ? (
-            <p className="frame pb-2 text-xs text-signal-ink" role="status">
-              The article closes in {Math.ceil((remaining ?? 0) / 1000)} seconds.
-            </p>
-          ) : null}
+          <ReadProgress />
         </div>
         {article ? (
           <article
@@ -349,12 +337,13 @@ export function SessionFlow({
             style={phase === "closing" ? { animation: "article-out 600ms var(--ease-in-out) forwards" } : undefined}
             aria-label="Article"
           >
+            <JourneySteps stage="understand" className="mb-8" />
             <p className="eyebrow">Read carefully · it won&rsquo;t come back</p>
-            <h1 className="mt-4 font-serif text-2xl leading-[1.1] md:text-[2.625rem]">{article.title}</h1>
+            <h1 className="display mt-4 text-[clamp(2rem,4.5vw,2.75rem)] leading-[1.08]">{article.title}</h1>
             <p className="mt-3 text-sm text-ink-3">{article.wordCount} words</p>
             <div
               className={`prose-article mt-10 transition-[filter,opacity] duration-150 ${
-                !windowActive || (fullscreenSupported && !fullscreen) || screenshotMask ? "blur-2xl opacity-10 select-none pointer-events-none" : ""
+                !windowActive || (fullscreenSupported && !fullscreen) || screenshotMask ? "pointer-events-none select-none opacity-10 blur-2xl" : ""
               }`}
             >
               {paragraphs.map((p, i) => (
@@ -363,40 +352,26 @@ export function SessionFlow({
             </div>
             <Watermark text={`${studentCode} · ${sessionId.slice(0, 8)}`} />
             {screenshotMask && phase === "reading" ? (
-              <div className="absolute inset-0 z-30 flex items-center justify-center bg-paper/90 backdrop-blur-xl p-6" role="alert">
-                <div className="max-w-md border-2 border-bad bg-paper-raised p-6 shadow-doc text-center">
-                  <p className="eyebrow text-bad">Security notice</p>
-                  <h2 className="mt-2 font-serif text-xl font-medium text-bad">Screenshot blocked</h2>
-                  <p className="mt-2 text-sm text-ink-2">
-                    Screen capture shortcuts are prohibited while reading. The article is temporarily concealed and this attempt has been recorded in your
-                    integrity record.
-                  </p>
-                </div>
-              </div>
+              <Overlay role="alert" title="The article is hidden for a moment" tone="warn">
+                Screen-capture shortcuts aren&rsquo;t allowed while reading, so the text is covered briefly. This was noted in your assessment record.
+              </Overlay>
             ) : null}
             {fullscreenSupported && !fullscreen && phase === "reading" && !screenshotMask ? (
-              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-paper/90 backdrop-blur-md p-6 text-center" role="alert">
-                <div className="max-w-md border border-ink bg-paper-raised p-6 shadow-doc">
-                  <p className="eyebrow text-signal-ink">Assessment Mode</p>
-                  <h2 className="mt-2 font-serif text-xl font-medium text-ink">Full screen required to read</h2>
-                  <p className="mt-2 text-sm text-ink-2">
-                    The article cannot be viewed in windowed mode. Leaving full screen is recorded on your integrity receipt. Return to full screen to continue
-                    reading.
-                  </p>
-                  <Button size="md" variant="primary" className="mt-5 w-full" onClick={() => void requestFullscreen()}>
-                    Return to full screen
-                  </Button>
-                </div>
-              </div>
+              <Overlay role="alert" title="Full screen to read" tone="ink">
+                The article only shows in full screen. Leaving full screen is noted in your record — one accident never invalidates a result.
+                <Button size="md" className="mt-5 w-full" onClick={() => void requestFullscreen()}>
+                  Return to full screen
+                </Button>
+              </Overlay>
             ) : null}
             {!windowActive && fullscreen && phase === "reading" && !screenshotMask ? (
               <div className="absolute inset-0 z-10 flex items-start justify-center bg-paper/70 pt-40" role="status">
-                <p className="max-w-sm border-l-2 border-warn-mark bg-paper px-4 py-2 text-sm text-ink-2 shadow-doc">
-                  The article is hidden while this window is not active. Click here to continue — the clock keeps running.
+                <p className="max-w-sm rounded-[14px] bg-paper-raised px-4 py-3 text-sm text-ink-2 shadow-lift ring-1 ring-rule">
+                  The article is hidden while this window isn&rsquo;t active. Click here to continue — the clock keeps running.
                 </p>
               </div>
             ) : null}
-            <MonitorNote />
+            <IntegrityTimeline noted={noted} />
           </article>
         ) : null}
         <Notices notices={notices} />
@@ -405,110 +380,232 @@ export function SessionFlow({
 
   // Writing and submitting
   return (
-    <div className="frame-narrow pb-24 pt-12 md:pt-16">
-      <Notices notices={notices} />
-      {fullscreenSupported && !fullscreen && phase === "writing" ? (
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-l-2 border-rule-strong py-1 pl-4 text-sm text-ink-2">
-          <span>You are not in full screen. Leaving the window or tab while writing is recorded.</span>
-          <Button size="sm" variant="quiet" onClick={() => void requestFullscreen()}>
-            Return to full screen
+    <>
+      <JourneyThread stage="evidence" />
+      <div className="frame-narrow pb-24 pt-10 md:pt-14">
+        <Notices notices={notices} />
+        <JourneySteps stage="evidence" className="mb-8" />
+        {fullscreenSupported && !fullscreen && phase === "writing" ? (
+          <div className="mb-6">
+            <Notice
+              tone="none"
+              action={
+                <Button size="sm" variant="quiet" onClick={() => void requestFullscreen()}>
+                  Return to full screen
+                </Button>
+              }
+            >
+              You&rsquo;re not in full screen. Leaving the window or tab while writing is noted.
+            </Notice>
+          </div>
+        ) : null}
+        {notice ? (
+          <div className="mb-8">
+            <Notice tone="ink">{notice}</Notice>
+          </div>
+        ) : null}
+        <div className="flex items-start justify-between gap-4">
+          <p className="eyebrow">The article has closed</p>
+          <button
+            type="button"
+            onClick={() => setTipsOpen(true)}
+            className="-mt-1.5 inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-teal hover:bg-mint"
+          >
+            <Icon name="info" size={15} /> How to answer well
+          </button>
+        </div>
+        <h1 className="display mt-3 text-[clamp(2rem,4.5vw,2.625rem)] leading-[1.1]">What is it about, and why does it matter?</h1>
+        <p className="mt-3 text-md text-ink-2">Explain it in your own words, as if to someone who hasn&rsquo;t read it.</p>
+
+        <div className="mt-10">
+          <label htmlFor="answer" className="sr-only">
+            Your explanation
+          </label>
+          <div className="rounded-[24px] bg-paper-raised p-1 ring-1 ring-rule transition-shadow duration-300 focus-within:shadow-[0_0_0_4px_rgb(171_155_203/0.35)] focus-within:ring-lavender">
+            <textarea
+              id="answer"
+              ref={textRef}
+              value={answer}
+              onChange={(e) => {
+                const added = e.target.value.length - answer.length;
+                if (!internalPaste.current) monitor.inputDelta(added, (e.nativeEvent as InputEvent).inputType ?? null);
+                internalPaste.current = false;
+                setAnswer(e.target.value);
+              }}
+              onPaste={(e) => {
+                const text = e.clipboardData.getData("text/plain");
+                if (monitor.pasteAttempt(text, "paste")) internalPaste.current = true;
+                else e.preventDefault();
+              }}
+              onDrop={(e) => {
+                const text = e.dataTransfer.getData("text/plain");
+                if (monitor.pasteAttempt(text, "drop")) internalPaste.current = true;
+                else e.preventDefault();
+              }}
+              disabled={phase === "submitting"}
+              rows={12}
+              aria-invalid={touched && !!wordError}
+              aria-describedby="wc"
+              className="block w-full resize-y rounded-[20px] border-0 border-l-[3px] border-lavender bg-lavender/[0.06] px-5 py-5 font-serif text-[1.1875rem] leading-[1.75] text-ink caret-[#7e6aa8] placeholder:text-ink-3/60 focus:outline-none focus-visible:shadow-none focus-visible:outline-none"
+              placeholder="Start with the central idea, then explain how it works and why it matters…"
+            />
+          </div>
+          <WordMeter words={words} min={minWords} max={maxWords} />
+          {touched && wordError ? (
+            <p className="mt-2 flex items-center gap-1.5 text-sm text-bad" role="alert">
+              <Icon name="alert" size={14} /> {wordError}
+            </p>
+          ) : null}
+        </div>
+
+        {submitError ? (
+          <div className="mt-6">
+            <Notice tone="bad" title="Not submitted">
+              {submitError}
+            </Notice>
+          </div>
+        ) : null}
+
+        <div className="mt-8 flex flex-wrap items-center justify-between gap-6">
+          <p className="max-w-sm text-xs text-ink-3">Pasting is off. Events like leaving the tab are noted; they never change your comprehension score.</p>
+          <Button size="lg" onClick={submit} busy={phase === "submitting"} busyLabel="Sending…" disabled={!!wordError && touched} iconAfter="arrow">
+            Submit for assessment
           </Button>
         </div>
-      ) : null}
-      {notice ? (
-        <div className="mb-8">
-          <Notice tone="ink">{notice}</Notice>
-        </div>
-      ) : null}
-      <p className="eyebrow">The article has closed</p>
-      <h1 className="mt-4 font-serif text-2xl leading-[1.12] md:text-[2.375rem]">What is this article about, and why does it matter?</h1>
-      <p className="mt-3 text-md text-ink-2">Explain it in your own words, as if to someone who hasn&rsquo;t read it.</p>
 
-      <div className="mt-10">
-        <label htmlFor="answer" className="sr-only">
-          Your explanation
-        </label>
-        <textarea
-          id="answer"
-          ref={textRef}
-          value={answer}
-          onChange={(e) => {
-            const added = e.target.value.length - answer.length;
-            if (!internalPaste.current) monitor.inputDelta(added, (e.nativeEvent as InputEvent).inputType ?? null);
-            internalPaste.current = false;
-            setAnswer(e.target.value);
-          }}
-          onPaste={(e) => {
-            const text = e.clipboardData.getData("text/plain");
-            if (monitor.pasteAttempt(text, "paste")) internalPaste.current = true;
-            else e.preventDefault();
-          }}
-          onDrop={(e) => {
-            const text = e.dataTransfer.getData("text/plain");
-            if (monitor.pasteAttempt(text, "drop")) internalPaste.current = true;
-            else e.preventDefault();
-          }}
-          disabled={phase === "submitting"}
-          rows={12}
-          aria-invalid={touched && !!wordError}
-          aria-describedby="wc"
-          className="block w-full resize-y border-0 border-y border-ink bg-transparent px-0 py-6 font-serif text-[1.1875rem] leading-[1.7] text-ink placeholder:text-ink-3/60 focus:outline-none focus-visible:outline-none"
-          placeholder="Start with the article's central idea, then explain how it works and why it matters…"
-        />
-        <WordMeter words={words} min={minWords} max={maxWords} />
-        {touched && wordError ? (
-          <p className="mt-2 text-sm text-bad" role="alert">
-            {wordError}
-          </p>
+        {samples.length && phase === "writing" ? (
+          <details className="mt-14 border-t border-rule pt-4">
+            <summary className="cursor-pointer text-sm text-ink-3">Demo helper · insert a prepared answer (demo deployments only)</summary>
+            <div className="mt-4 flex flex-wrap gap-3">
+              {samples.map((s) => (
+                <Button
+                  key={s.label}
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    monitor.record("BULK_INSERT", { chars: s.text.length, inputType: "demo-sample" });
+                    setAnswer(s.text);
+                  }}
+                >
+                  {s.label}
+                </Button>
+              ))}
+            </div>
+          </details>
         ) : null}
-      </div>
-
-      {submitError ? (
-        <div className="mt-6">
-          <Notice tone="bad" title="Not submitted">
-            {submitError}
-          </Notice>
-        </div>
-      ) : null}
-
-      <div className="mt-8 flex flex-wrap items-center justify-between gap-6">
-        <p className="max-w-sm text-xs text-ink-3">
-          Pasting is disabled. Leaving the tab or window, clipboard use and similar events are recorded. They never change your comprehension score, but long or
-          repeated absences can mean a teacher must review your result before it counts.
+        <p className="mt-10 text-sm">
+          <Link href="/home" className="link text-ink-3">
+            Save draft and leave
+          </Link>{" "}
+          <span className="text-xs text-ink-3">· the time you are away is noted</span>
         </p>
-        <Button size="lg" onClick={submit} busy={phase === "submitting"} disabled={!!wordError && touched} iconAfter="arrow">
-          Submit for assessment
-        </Button>
+        <IntegrityTimeline noted={noted} />
       </div>
 
-      {samples.length && phase === "writing" ? (
-        <details className="mt-14 border-t border-rule pt-4">
-          <summary className="cursor-pointer text-sm text-ink-3">Demo helper · insert a prepared answer (demo deployments only)</summary>
-          <div className="mt-4 flex flex-wrap gap-3">
-            {samples.map((s) => (
-              <Button
-                key={s.label}
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  monitor.record("BULK_INSERT", { chars: s.text.length, inputType: "demo-sample" });
-                  setAnswer(s.text);
-                }}
-              >
-                {s.label}
-              </Button>
-            ))}
-          </div>
-        </details>
-      ) : null}
-      <p className="mt-10 text-sm">
-        <Link href="/home" className="link text-ink-3">
-          Save draft and leave
-        </Link>{" "}
-        <span className="text-xs text-ink-3">· the time you are away is recorded</span>
-      </p>
-      <div className="mt-8">
-        <MonitorNote />
+      <Sheet
+        open={tipsOpen}
+        onClose={() => setTipsOpen(false)}
+        title="How to answer well"
+        description="The article stays closed — that is what makes every result comparable."
+      >
+        <ol className="space-y-6">
+          {[
+            ["Start with the central idea", "One sentence: what is the article mostly about?"],
+            ["Explain how it works", "Link two ideas with because, so, which means. Mechanisms count more than terms."],
+            ["Say why it matters", "What changes, or what goes wrong without it?"],
+            ["Use your own words", "Phrases reproduced word for word from the article earn no credit."],
+          ].map(([h, b], i) => (
+            <li key={h} className="grid grid-cols-[2rem_minmax(0,1fr)] gap-3">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-lavender/25 text-sm font-semibold text-ink">{i + 1}</span>
+              <div>
+                <p className="font-medium text-ink">{h}</p>
+                <p className="mt-1 text-sm text-ink-2">{b}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+        <p className="mt-8 rounded-[14px] bg-mint px-4 py-3 text-sm text-ink-2">
+          {minWords}–{maxWords} words. Your draft is saved on this device as you type.
+        </p>
+      </Sheet>
+    </>
+  );
+}
+
+/** FairClock: a thin ring and plain words. Calm by design — it never turns red. */
+function FairClock({
+  remaining,
+  frac,
+  low,
+  acked,
+  mode,
+  compMs,
+}: {
+  remaining: number | null;
+  frac: number;
+  low: boolean;
+  acked: boolean;
+  mode: "fair" | "naive";
+  compMs: number;
+}) {
+  const r = 15;
+  const c = 2 * Math.PI * r;
+  return (
+    <div
+      className="flex items-center gap-3"
+      role="timer"
+      aria-live="off"
+      aria-label={remaining === null ? "Measuring delivery" : `${clock(remaining)} left to read`}
+    >
+      <svg width="38" height="38" viewBox="0 0 38 38" aria-hidden className="-rotate-90">
+        <circle cx="19" cy="19" r={r} fill="none" stroke="var(--color-mint)" strokeWidth="3" />
+        <circle
+          cx="19"
+          cy="19"
+          r={r}
+          fill="none"
+          stroke={low ? "#6ACCC6" : "#12708A"}
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={c * (1 - frac)}
+          style={{ transition: "stroke-dashoffset 200ms linear" }}
+        />
+      </svg>
+      <div className="leading-tight">
+        <p className="num mono text-lg text-ink">{remaining === null ? "–:––" : clock(remaining)}</p>
+        <p className="text-xs text-ink-3" role={low ? "status" : undefined}>
+          {low
+            ? `Closes in ${Math.ceil((remaining ?? 0) / 1000)} s — finish your sentence`
+            : mode === "fair"
+              ? acked
+                ? compMs > 0
+                  ? `Time left · adjusted +${(compMs / 1000).toFixed(1)} s for delivery`
+                  : "Time left · fair clock"
+                : "Measuring delivery…"
+              : "Time left · server clock (comparison mode)"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/** Slim reading-progress line in the thread gradient. */
+function ReadProgress() {
+  const { scrollYProgress } = useScroll();
+  const x = useSpring(scrollYProgress, { stiffness: 120, damping: 30 });
+  return <motion.div aria-hidden className="h-[2px] origin-left" style={{ scaleX: x, background: "var(--thread-x)" }} />;
+}
+
+function Overlay({ title, children, tone, role }: { title: string; children: React.ReactNode; tone: "warn" | "ink"; role: "alert" | "status" }) {
+  return (
+    <div className="absolute inset-0 z-20 flex flex-col items-center justify-start bg-paper/92 p-6 pt-32 text-center" role={role}>
+      <div className="max-w-md rounded-[24px] bg-paper-raised p-7 shadow-doc ring-1 ring-rule">
+        <span className={`mx-auto flex h-10 w-10 items-center justify-center rounded-full ${tone === "warn" ? "bg-warn-wash text-warn" : "bg-mint text-teal"}`}>
+          <Icon name={tone === "warn" ? "eye" : "lock"} size={18} />
+        </span>
+        <h2 className="mt-4 font-serif text-xl text-ink">{title}</h2>
+        <div className="mt-2 text-sm text-ink-2">{children}</div>
       </div>
     </div>
   );
@@ -517,8 +614,8 @@ export function SessionFlow({
 /** Faint, repeated identity mark over the article: a screenshot or photo stays attributable. */
 function Watermark({ text }: { text: string }) {
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 z-[1] overflow-hidden select-none">
-      <div className="absolute -inset-1/4 flex rotate-[-24deg] flex-wrap content-start gap-x-12 gap-y-16 opacity-[0.11]">
+    <div aria-hidden className="pointer-events-none absolute inset-0 z-[1] select-none overflow-hidden">
+      <div className="absolute -inset-1/4 flex rotate-[-24deg] flex-wrap content-start gap-x-12 gap-y-16 opacity-[0.09]">
         {Array.from({ length: 72 }, (_, i) => (
           <span key={i} className="mono whitespace-nowrap text-xs font-semibold text-ink">
             {text}
@@ -535,8 +632,9 @@ function Notices({ notices }: { notices: MonitorNotice[] }) {
       {notices.map((n) => (
         <p
           key={n.id}
-          className={`max-w-md border-l-2 bg-paper-raised px-4 py-2 text-sm shadow-doc ${n.tone === "bad" ? "border-bad-mark text-bad" : n.tone === "warn" ? "border-warn-mark text-ink" : "border-ink text-ink"}`}
+          className="flex max-w-md animate-rise items-center gap-2.5 rounded-full bg-paper-raised px-4 py-2 text-sm text-ink shadow-lift ring-1 ring-rule"
         >
+          <span className={`h-2 w-2 shrink-0 rounded-full ${n.tone === "bad" || n.tone === "warn" ? "bg-warn-mark" : "bg-teal"}`} aria-hidden />
           {n.message}
         </p>
       ))}
@@ -544,24 +642,37 @@ function Notices({ notices }: { notices: MonitorNotice[] }) {
   );
 }
 
-/** What is recorded, and — stated plainly — what a browser cannot see. */
-function MonitorNote() {
+/** Integrity, on demand: a quiet timeline of what this page has noted, plus what it records and cannot see. */
+function IntegrityTimeline({ noted }: { noted: { id: MonitorNotice["id"]; message: string }[] }) {
   return (
-    <details className="relative z-[2] mt-12 border-t border-rule pt-4 text-xs text-ink-3">
-      <summary className="cursor-pointer">What this assessment records</summary>
-      <p className="mt-3">
-        While this page is open it records: leaving the tab or window (and for how long), leaving full screen, copy, paste and print attempts (all blocked),
-        screenshot and developer-tool shortcuts, reloads, a second tab with this session, and device-clock jumps. A blocked paste is compared with the article
-        on the server and then discarded. The server separately records requests for the article after it closes and any time the page is out of contact.
-      </p>
-      <p className="mt-2">Each event is rated by published rules. One accidental event never invalidates a result.</p>
-      <p className="mt-2">A browser cannot detect:</p>
-      <ul className="mt-1 list-disc pl-5">
-        {INTEGRITY_LIMITS.map((l) => (
-          <li key={l}>{l}</li>
-        ))}
-      </ul>
-    </details>
+    <div className="relative z-[2] mt-14">
+      <Reveal summary="Assessment conditions" meta={noted.length ? `${noted.length} noted` : "nothing noted"}>
+        <ol className="relative space-y-4 pl-6">
+          <span aria-hidden className="absolute bottom-1 left-[5px] top-1 w-px bg-rule" />
+          <li className="relative text-sm">
+            <span className="absolute -left-6 top-1.5 h-[11px] w-[11px] rounded-full bg-ok-mark" aria-hidden />
+            <span className="font-medium text-ok">Monitoring on</span>{" "}
+            <span className="text-ink-3">· tab and window focus, full screen, clipboard, print, reloads</span>
+          </li>
+          {noted.map((n) => (
+            <li key={n.id} className="relative text-sm">
+              <span className="absolute -left-6 top-1.5 h-[11px] w-[11px] rounded-full bg-warn-mark" aria-hidden />
+              <span className="font-medium text-warn">Noted</span> <span className="text-ink-2">· {n.message}</span>
+            </li>
+          ))}
+        </ol>
+        <p className="mt-5 text-xs text-ink-3">
+          Each event is rated by published rules, separately from comprehension. One accident never invalidates a result. A blocked paste is compared with the
+          article on the server, then discarded.
+        </p>
+        <p className="mt-3 text-xs text-ink-3">A browser cannot detect:</p>
+        <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs text-ink-3">
+          {INTEGRITY_LIMITS.map((l) => (
+            <li key={l}>{l}</li>
+          ))}
+        </ul>
+      </Reveal>
+    </div>
   );
 }
 
@@ -569,10 +680,13 @@ function WordMeter({ words, min, max }: { words: number; min: number; max: numbe
   const pct = Math.min(100, (words / max) * 100);
   const ok = words >= min && words <= max;
   return (
-    <div id="wc" className="mt-3">
-      <div className="relative h-1 bg-paper-deep" aria-hidden>
-        <div className={`h-full ${ok ? "bg-ink" : words > max ? "bg-bad-mark" : "bg-ink-3"}`} style={{ width: `${pct}%` }} />
-        <div className="absolute -top-1 h-3 w-px bg-ink-2" style={{ left: `${(min / max) * 100}%` }} />
+    <div id="wc" className="mt-4">
+      <div className="relative h-1.5 rounded-full bg-mint" aria-hidden>
+        <div
+          className={`h-full rounded-full transition-[width] duration-300 ${ok ? "bg-lavender" : words > max ? "bg-warn-mark" : "bg-peri"}`}
+          style={{ width: `${pct}%` }}
+        />
+        <div className="absolute -top-1 h-3.5 w-px bg-ink-3" style={{ left: `${(min / max) * 100}%` }} />
       </div>
       <div className="mt-2 flex justify-between text-xs">
         <span className={`num mono ${ok ? "text-ink" : "text-ink-3"}`}>

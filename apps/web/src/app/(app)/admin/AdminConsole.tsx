@@ -5,7 +5,9 @@ import { useCallback, useEffect, useState } from "react";
 import { formatDateTime } from "@graspchain/shared";
 import { Button } from "@/components/ui/Button";
 import { Field, Notice, inputClass } from "@/components/ui/Bits";
-import { CHAIN, Mark, Tag } from "@/components/ui/Status";
+import { CHAIN, Dot, Mark, Tag } from "@/components/ui/Status";
+import { Segmented } from "@/components/ui/Segmented";
+import { Reveal } from "@/components/ui/Sheet";
 import { call, store } from "@/lib/http";
 
 interface Settings {
@@ -62,6 +64,11 @@ export function AdminConsole({ demoTools }: { demoTools: boolean }) {
   const [draft, setDraft] = useState("");
   const [status, setStatus] = useState<Status | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<"status" | "modes" | "integrity" | "audit">("status");
+  useEffect(() => {
+    const h = window.location.hash.slice(1);
+    if (h === "modes" || h === "integrity" || h === "audit" || h === "status") setTab(h);
+  }, []);
 
   useEffect(() => setSecret(ss.get("gc-admin-secret")), []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -114,8 +121,8 @@ export function AdminConsole({ demoTools }: { demoTools: boolean }) {
     <div className="frame pt-10 md:pt-14">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="eyebrow">Integrity</p>
-          <h1 className="mt-3 font-serif text-2xl md:text-3xl">System status and demo controls</h1>
+          <p className="eyebrow">Admin</p>
+          <h1 className="display mt-3 text-[clamp(2.25rem,5vw,3.25rem)]">This deployment</h1>
         </div>
         <button
           className="link text-sm text-ink-3"
@@ -128,32 +135,67 @@ export function AdminConsole({ demoTools }: { demoTools: boolean }) {
           Lock
         </button>
       </header>
+      <div className="mt-8 overflow-x-auto pb-1">
+        <Segmented
+          label="Admin sections"
+          value={tab}
+          onChange={(v) => {
+            setTab(v);
+            try {
+              history.replaceState(null, "", `#${v}`);
+            } catch {
+              /* ignore */
+            }
+          }}
+          options={[
+            { value: "status", label: "System status" },
+            { value: "modes", label: "Live modes" },
+            { value: "integrity", label: "Integrity tools" },
+            { value: "audit", label: "Audit log" },
+          ]}
+        />
+      </div>
       {error ? (
         <div className="mt-6">
           <Notice tone="bad">{error}</Notice>
         </div>
       ) : null}
-      {status ? <Readouts s={status} /> : <div className="skeleton mt-10 h-48" aria-busy="true" />}
-      {status ? <Modes initial={status.settings} headers={headers} demoTools={demoTools} onSaved={load} /> : null}
-      {demoTools ? (
-        <Tamper headers={headers} />
-      ) : (
-        <section className="mt-16 border-t border-ink pt-8">
-          <h2 className="font-serif text-xl">Tamper test</h2>
-          <p className="mt-2 text-ink-3">Disabled: ADMIN_DEMO_TOOLS=0 on this deployment.</p>
-        </section>
-      )}
-      <Audit headers={headers} />
+      <div className="mt-8">
+        {tab === "status" ? status ? <Readouts s={status} /> : <div className="skeleton h-48" aria-busy="true" /> : null}
+        {tab === "modes" ? (
+          status ? (
+            <Modes initial={status.settings} headers={headers} demoTools={demoTools} onSaved={load} />
+          ) : (
+            <div className="skeleton h-48" aria-busy="true" />
+          )
+        ) : null}
+        {tab === "integrity" ? (
+          demoTools ? (
+            <Tamper headers={headers} />
+          ) : (
+            <section>
+              <h2 className="font-serif text-xl">Tamper test</h2>
+              <p className="mt-2 text-ink-3">Disabled: ADMIN_DEMO_TOOLS=0 on this deployment.</p>
+            </section>
+          )
+        ) : null}
+        {tab === "audit" ? <Audit headers={headers} /> : null}
+      </div>
     </div>
   );
 }
 
 function Readout({ label, value, sub, tone }: { label: string; value: React.ReactNode; sub?: React.ReactNode; tone?: "bad" | "warn" }) {
   return (
-    <div className="border-b border-rule py-4 sm:border-r sm:px-5 sm:max-lg:nth-[2n+1]:pl-0 sm:max-lg:nth-[2n]:border-r-0 lg:nth-[4n+1]:pl-0 lg:nth-[4n]:border-r-0">
-      <dt className="eyebrow">{label}</dt>
-      <dd className={`num mt-2 font-serif text-2xl leading-none ${tone === "bad" ? "text-bad" : tone === "warn" ? "text-warn" : ""}`}>{value}</dd>
-      {sub ? <dd className="mt-2 text-xs text-ink-3">{sub}</dd> : null}
+    <div className="grid gap-1 px-5 py-4 sm:grid-cols-[11rem_minmax(0,1fr)] sm:gap-6">
+      <dt className="flex items-center gap-2 text-sm text-ink-2">
+        <Dot tone={tone === "bad" ? "bad" : tone === "warn" ? "warn" : "ok"} />
+        {label}
+      </dt>
+      <dd>
+        <span className={`num text-base font-medium leading-snug ${tone === "bad" ? "text-bad" : tone === "warn" ? "text-warn" : "text-ink"}`}>{value}</span>
+        {sub ? <span className="mt-1 block text-xs text-ink-3">{sub}</span> : null}
+      </dd>
     </div>
   );
 }
@@ -162,77 +204,95 @@ function Readouts({ s }: { s: Status }) {
   const pctCap = Math.min(1, s.jev.tokensToday / s.jev.cap);
   const backlog = s.outbox.queued + s.outbox.sent + s.outbox.retry;
   return (
-    <section aria-label="Status" className="mt-10 border-t border-ink">
-      <dl className="grid sm:grid-cols-2 lg:grid-cols-4">
-        <Readout
-          label="Jev tokens today"
-          value={s.jev.tokensToday.toLocaleString()}
-          sub={
-            <>
-              of {s.jev.cap.toLocaleString()} cap · {s.jev.callsToday} calls
-              <span className="mt-2 block h-1 w-full bg-paper-deep">
-                <span className={`block h-full ${pctCap > 0.9 ? "bg-bad-mark" : "bg-ink"}`} style={{ width: `${pctCap * 100}%` }} />
-              </span>
-              {s.config.judge.kind === "local" ? <span className="mt-1 block text-warn">Local demo judge: no Jev calls are made.</span> : null}
-              {s.config.judge.kind === "evidence" ? (
-                <span className="mt-1 block text-ink-3">Evidence judge: no Jev calls are made; LLM usage is under LLM.</span>
-              ) : null}
-            </>
-          }
-        />
-        <Readout
-          label="Outbox backlog"
-          value={backlog}
-          tone={s.outbox.failed ? "bad" : backlog > 5 ? "warn" : undefined}
-          sub={`${s.outbox.mined} mined · ${s.outbox.retry} retrying · ${s.outbox.failed} failed`}
-        />
-        <Readout label="Queue" value={s.queue.waiting ?? 0} sub={`waiting · ${(s.queue.admitted ?? 0) + (s.queue.used ?? 0)} holding a slot`} />
-        <Readout label="Cache hit rate" value={s.cacheHitRate === null ? "—" : `${Math.round(s.cacheHitRate * 100)}%`} sub="Jev + LLM, all time" />
-        <Readout
-          label="Time to score"
-          value={s.latency.p50ScoreMs === null ? "—" : `${s.latency.p50ScoreMs} ms`}
-          sub={`p50 · p95 ${s.latency.p95ScoreMs ?? "—"} ms · last ${s.latency.n}`}
-        />
-        <Readout
-          label="Attempts"
-          value={Object.values(s.attempts).reduce((a, b) => a + b, 0)}
-          sub={Object.entries(s.attempts)
-            .map(([k, v]) => `${v} ${k}`)
-            .join(" · ")}
-          tone={s.attempts.failed ? "warn" : undefined}
-        />
-        <Readout
-          label="Chain"
-          value={s.chain.reachable ? `#${s.chain.blockNumber}` : "offline"}
-          tone={s.chain.reachable ? undefined : "bad"}
-          sub={`${s.config.chain.name} · registry ${s.chain.registryDeployed ? "deployed" : "missing"} · gas ${s.chain.gasPriceGwei ?? "—"} gwei`}
-        />
-        <Readout
-          label="Chain writer"
-          value={s.chain.canWrite ? "on" : "off"}
-          tone={s.chain.canWrite ? undefined : "warn"}
-          sub={
-            s.chain.writer ? (
+    <section aria-label="System status" className="space-y-4">
+      <Reveal summary="Components" meta="judge · LLM · chain · registry · API" defaultOpen>
+        <dl className="divide-y divide-rule rounded-[20px] bg-paper-raised ring-1 ring-rule">
+          <Readout
+            label="Judge"
+            value={<span className="mono text-base">{s.config.judge.model}</span>}
+            tone={s.config.judge.kind === "local" ? "warn" : undefined}
+            sub={
+              s.config.judge.kind === "local"
+                ? "Local demo judge — no Jev calls are made."
+                : s.config.judge.kind === "evidence"
+                  ? "Evidence judge: the LLM extracts evidence; rules decide."
+                  : "Jev"
+            }
+          />
+          <Readout
+            label="LLM"
+            value={s.llm ? <span className="mono text-base">{`${s.config.llm.provider}/${s.config.llm.model}`}</span> : "off"}
+            tone={s.llm ? undefined : "warn"}
+            sub={s.llm ? `${s.llm.tokensToday.toLocaleString()} tokens · ${s.llm.callsToday} calls today` : "Sentence split + template feedback"}
+          />
+          <Readout
+            label="Chain"
+            value={s.chain.reachable ? `${s.config.chain.name} · block ${s.chain.blockNumber}` : "offline"}
+            tone={s.chain.reachable ? undefined : "bad"}
+            sub={`chain ${s.config.chain.chainId} · gas ${s.chain.gasPriceGwei ?? "—"} gwei${s.chain.error ? ` · ${s.chain.error}` : ""}`}
+          />
+          <Readout
+            label="Registry"
+            value={<span className="mono break-all text-base">{s.chain.registry ?? "not configured"}</span>}
+            tone={s.chain.registryDeployed ? undefined : "warn"}
+            sub={s.chain.registryDeployed ? "deployed" : "missing on this chain"}
+          />
+          <Readout
+            label="Chain writer"
+            value={s.chain.canWrite ? "on" : "off"}
+            tone={s.chain.canWrite ? undefined : "warn"}
+            sub={
+              s.chain.writer ? (
+                <>
+                  balance {s.chain.writerBalanceEth} ETH{s.writerLastError ? <span className="mt-1 block text-bad">{s.writerLastError}</span> : null}
+                </>
+              ) : (
+                "No DEPLOYER_PRIVATE_KEY"
+              )
+            }
+          />
+          <Readout label="API" value="reachable" sub={`demo mode ${s.config.demoMode} · refreshes every 5 s`} />
+        </dl>
+      </Reveal>
+      <Reveal summary="Load and throughput" meta={`${backlog} in the outbox`}>
+        <dl className="divide-y divide-rule rounded-[20px] bg-paper-raised ring-1 ring-rule">
+          <Readout
+            label="Jev tokens today"
+            value={s.jev.tokensToday.toLocaleString()}
+            tone={pctCap > 0.9 ? "bad" : undefined}
+            sub={
               <>
-                balance {s.chain.writerBalanceEth} ETH{s.writerLastError ? <span className="mt-1 block text-bad">{s.writerLastError}</span> : null}
+                of {s.jev.cap.toLocaleString()} cap · {s.jev.callsToday} calls
+                <span className="mt-2 block h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-mint">
+                  <span className={`block h-full rounded-full ${pctCap > 0.9 ? "bg-bad-mark" : "bg-teal"}`} style={{ width: `${pctCap * 100}%` }} />
+                </span>
               </>
-            ) : (
-              "No DEPLOYER_PRIVATE_KEY"
-            )
-          }
-        />
-      </dl>
-      <p className="mt-3 text-xs text-ink-3">
-        Judge <span className="mono">{s.config.judge.model}</span> · LLM{" "}
-        {s.llm ? (
-          <span className="mono">
-            {s.config.llm.provider}/{s.config.llm.model}
-          </span>
-        ) : (
-          "off"
-        )}{" "}
-        · demo mode {s.config.demoMode} · refreshes every 5 s
-      </p>
+            }
+          />
+          <Readout
+            label="Outbox backlog"
+            value={backlog}
+            tone={s.outbox.failed ? "bad" : backlog > 5 ? "warn" : undefined}
+            sub={`${s.outbox.mined} mined · ${s.outbox.retry} retrying · ${s.outbox.failed} failed`}
+          />
+          <Readout label="Queue" value={s.queue.waiting ?? 0} sub={`waiting · ${(s.queue.admitted ?? 0) + (s.queue.used ?? 0)} holding a slot`} />
+          <Readout label="Cache hit rate" value={s.cacheHitRate === null ? "—" : `${Math.round(s.cacheHitRate * 100)}%`} sub="Jev + LLM, all time" />
+          <Readout
+            label="Time to score"
+            value={s.latency.p50ScoreMs === null ? "—" : `${s.latency.p50ScoreMs} ms`}
+            sub={`p50 · p95 ${s.latency.p95ScoreMs ?? "—"} ms · last ${s.latency.n}`}
+          />
+          <Readout
+            label="Attempts"
+            value={Object.values(s.attempts).reduce((a, b) => a + b, 0)}
+            tone={s.attempts.failed ? "warn" : undefined}
+            sub={Object.entries(s.attempts)
+              .map(([k, v]) => `${v} ${k}`)
+              .join(" · ")}
+          />
+        </dl>
+      </Reveal>
+      <div className="border-t border-rule" />
     </section>
   );
 }
@@ -249,9 +309,9 @@ function Toggle({ label, on, onChange, hint }: { label: string; on: boolean; onC
         aria-checked={on}
         aria-label={label}
         onClick={() => onChange(!on)}
-        className={`relative mt-1 h-6 w-11 shrink-0 rounded-full border border-ink transition-colors ${on ? "bg-ink" : "bg-paper-raised"}`}
+        className={`relative mt-1 h-6 w-11 shrink-0 rounded-full transition-colors ${on ? "bg-teal" : "bg-mint ring-1 ring-rule-strong"}`}
       >
-        <span className={`absolute top-0.5 h-4.5 w-4.5 rounded-full transition-[left] ${on ? "left-[1.375rem] bg-paper" : "left-0.5 bg-ink"}`} />
+        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-[left] ${on ? "left-[1.375rem]" : "left-0.5"}`} />
       </button>
     </div>
   );
@@ -276,14 +336,14 @@ function Choice<T extends string>({
         <p className="text-[0.9375rem] font-medium">{label}</p>
         <p className="mt-0.5 text-sm text-ink-3">{hint}</p>
       </div>
-      <div className="flex border border-ink" role="radiogroup" aria-label={label}>
+      <div className="flex rounded-full bg-mint p-1" role="radiogroup" aria-label={label}>
         {options.map(([v, l]) => (
           <button
             key={v}
             role="radio"
             aria-checked={value === v}
             onClick={() => onChange(v)}
-            className={`h-9 px-3 text-sm ${value === v ? "bg-ink text-paper" : "hover:bg-paper-sunk"}`}
+            className={`h-8 rounded-full px-3.5 text-sm transition-colors ${value === v ? "bg-teal text-white" : "text-ink-2 hover:text-ink"}`}
           >
             {l}
           </button>
@@ -316,7 +376,7 @@ function Modes({
     if (r.ok) onSaved();
   }
   return (
-    <section className="mt-16 border-t border-ink pt-8" aria-labelledby="modes">
+    <section aria-labelledby="modes">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <h2 id="modes" className="font-serif text-xl">
           Live modes
@@ -433,7 +493,7 @@ function Tamper({ headers }: { headers: () => Record<string, string> }) {
   }
 
   return (
-    <section className="mt-16 border-t border-ink pt-8" aria-labelledby="tamper">
+    <section aria-labelledby="tamper">
       <h2 id="tamper" className="font-serif text-xl">
         Tamper test
       </h2>
@@ -478,7 +538,7 @@ function Tamper({ headers }: { headers: () => Record<string, string> }) {
           <div className="mt-8 overflow-x-auto">
             <table className="w-full min-w-[40rem] text-sm">
               <thead>
-                <tr className="border-b border-ink text-left">
+                <tr className="border-b border-rule-strong text-left">
                   {["Assessment", "Student", "Article", "Score", "Chain", "Server copy", ""].map((h) => (
                     <th key={h} className="eyebrow py-2">
                       {h}
@@ -530,12 +590,12 @@ function Audit({ headers }: { headers: () => Record<string, string> }) {
     void call<{ entries: NonNullable<typeof rows> }>("/api/admin/audit", { headers: headers() }).then((r) => r.ok && setRows(r.data.entries));
   }, [headers]);
   return (
-    <section className="mt-16 border-t border-ink pt-8" aria-labelledby="audit">
+    <section aria-labelledby="audit">
       <h2 id="audit" className="font-serif text-xl">
         Audit log
       </h2>
       {rows ? (
-        <ul className="mt-4 max-h-96 overflow-y-auto border-t border-rule text-sm">
+        <ul className="mt-4 max-h-[32rem] overflow-y-auto rounded-[20px] bg-paper-raised px-5 text-sm ring-1 ring-rule">
           {rows.slice(0, 40).map((r) => (
             <li key={r.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 border-b border-rule py-2 sm:grid-cols-[9.5rem_6rem_minmax(0,1fr)]">
               <span className="num text-xs text-ink-3">{formatDateTime(r.at)}</span>

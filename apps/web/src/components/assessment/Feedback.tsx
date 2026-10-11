@@ -7,16 +7,16 @@ type KpInfo = { id: string; concept: string; label: string; weight: number; p?: 
 /** Key ideas of the article with the judge's label for each; weight shown as ticks. */
 export function KeyIdeas({ keyPoints }: { keyPoints: KpInfo[] }) {
   return (
-    <ul className="border-t border-ink">
+    <ul className="divide-y divide-rule">
       {keyPoints.map((k) => (
-        <li key={k.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 border-b border-rule py-3">
+        <li key={k.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-3">
           <div className="min-w-0">
             <p className="text-[0.9375rem]">{k.concept}</p>
             <p className="mt-0.5 flex items-center gap-2 text-xs text-ink-3">
               <span className="mono">{k.id}</span>
               <span aria-label={`weight ${k.weight}`} className="tracking-[0.2em]">
                 {"▮".repeat(k.weight)}
-                <span className="text-rule-strong">{"▮".repeat(Math.max(0, 3 - k.weight))}</span>
+                <span className="text-ink-3/30">{"▮".repeat(Math.max(0, 3 - k.weight))}</span>
               </span>
             </p>
           </div>
@@ -27,7 +27,7 @@ export function KeyIdeas({ keyPoints }: { keyPoints: KpInfo[] }) {
   );
 }
 
-const quote = "border-l border-rule-strong pl-3 font-serif text-[1.0625rem] italic leading-relaxed text-ink";
+const quote = "border-l-2 border-lavender/60 pl-3 font-serif text-[1.0625rem] italic leading-relaxed text-ink";
 
 /** Grounded feedback (PRD §9.2.8). Quotes are exact substrings of the student's answer. */
 export function FeedbackView({ record, partial, keyPoints }: { record: FeedbackRecord | null; partial?: Partial<Feedback> | null; keyPoints: KpInfo[] }) {
@@ -115,7 +115,7 @@ export function FeedbackView({ record, partial, keyPoints }: { record: FeedbackR
       ) : null}
 
       {f.nextStep ? (
-        <div className="mt-8 border-t border-ink pt-4">
+        <div className="mt-8 rounded-[14px] bg-mint px-4 py-3">
           <p className="eyebrow">Next step</p>
           <p className="mt-2 text-[0.9375rem]">{f.nextStep}</p>
         </div>
@@ -127,7 +127,7 @@ export function FeedbackView({ record, partial, keyPoints }: { record: FeedbackR
 function Section({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
   return (
     <section className="mt-8">
-      <h3 className="flex items-baseline justify-between border-b border-ink pb-2">
+      <h3 className="flex items-baseline justify-between border-b border-rule pb-2">
         <span className="eyebrow text-ink">{title}</span>
         <span className="num mono text-xs text-ink-3">{count}</span>
       </h3>

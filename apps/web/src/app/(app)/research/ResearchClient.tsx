@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Button } from "@/components/ui/Button";
 import { Field, Notice, inputClass } from "@/components/ui/Bits";
 import { call, store } from "@/lib/http";
@@ -68,7 +68,7 @@ export function RatingDesk() {
           <legend className="sr-only">Rater type</legend>
           {(["internal", "external"] as const).map((t) => (
             <label key={t} className="flex items-center gap-2">
-              <input type="radio" name="rtype" checked={type === t} onChange={() => setType(t)} className="accent-[var(--color-ink)]" />
+              <input type="radio" name="rtype" checked={type === t} onChange={() => setType(t)} className="accent-[#12708A]" />
               {t === "internal" ? "Team member" : "External rater"}
             </label>
           ))}
@@ -118,7 +118,9 @@ export function RatingDesk() {
       </div>
       <div>
         <p className="eyebrow">The answer</p>
-        <p className="mt-3 border-y border-ink py-5 font-serif text-[1.0625rem] leading-relaxed">{q.next.answer}</p>
+        <p className="mt-3 rounded-[20px] border-l-[3px] border-lavender bg-lavender/[0.07] px-5 py-5 font-serif text-[1.0625rem] leading-relaxed">
+          {q.next.answer}
+        </p>
         <p className="eyebrow mt-6">Your score</p>
         <div className="mt-3 grid grid-cols-5 gap-2 sm:grid-cols-10" role="group" aria-label="Score from 1 to 10">
           {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
@@ -126,7 +128,7 @@ export function RatingDesk() {
               key={n}
               onClick={() => rate(n)}
               disabled={busy !== null}
-              className="num mono h-11 border border-ink text-[0.9375rem] transition-colors hover:bg-ink hover:text-paper disabled:opacity-50"
+              className="num mono h-12 rounded-[12px] bg-paper-raised text-[0.9375rem] ring-1 ring-rule transition-colors hover:bg-teal hover:text-white disabled:opacity-50"
             >
               {busy === n ? "…" : n}
             </button>
@@ -153,9 +155,9 @@ interface SimRun {
   jain: number;
 }
 
-// Categorical slots 1–2 of the validated palette (see Fingerprint.tsx).
-const FAST = "#2a6fb8";
-const NORMAL = "#d4622b";
+// Teal and deep Lavender (both ≥ 4.4:1 on Paper); every value is also in the table beside the chart.
+const FAST = "#12708A";
+const NORMAL = "#7E6AA8";
 
 export function FairGateSim() {
   const [runs, setRuns] = useState<SimRun[] | null>(null);
@@ -192,14 +194,13 @@ export function FairGateSim() {
             <div className="mt-3 h-64" role="img" aria-label="Median waits by condition; the table beside it has the same numbers.">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={runs} margin={{ top: 8, right: 8, bottom: 0, left: -18 }} barGap={2} barCategoryGap="28%">
-                  <CartesianGrid vertical={false} stroke="#e1dbcd" />
-                  <XAxis dataKey="label" tickLine={false} axisLine={{ stroke: "#b3aa97" }} tick={{ fill: "#64676c", fontSize: 12 }} />
-                  <YAxis tickLine={false} axisLine={false} tick={{ fill: "#64676c", fontSize: 12 }} />
+                  <XAxis dataKey="label" tickLine={false} axisLine={{ stroke: "rgb(11 58 74 / 0.22)" }} tick={{ fill: "#4F7682", fontSize: 12 }} />
+                  <YAxis tickLine={false} axisLine={false} tick={{ fill: "#4F7682", fontSize: 12 }} />
                   <Tooltip
-                    cursor={{ fill: "rgba(21,23,26,0.05)" }}
+                    cursor={{ fill: "rgb(106 204 198 / 0.12)" }}
                     content={({ active, payload }) =>
                       active && payload?.length ? (
-                        <div className="border border-ink bg-paper-raised px-3 py-2 text-xs shadow-lift">
+                        <div className="rounded-[12px] bg-paper-raised px-3 py-2 text-xs shadow-lift ring-1 ring-rule">
                           <p className="font-semibold">{(payload[0].payload as SimRun).label}</p>
                           <p className="mt-1">
                             Fast <span className="num mono">{(payload[0].payload as SimRun).fastMedian.toFixed(1)} s</span>
@@ -211,8 +212,8 @@ export function FairGateSim() {
                       ) : null
                     }
                   />
-                  <Bar dataKey="fastMedian" fill={FAST} maxBarSize={24} radius={[4, 4, 0, 0]} stroke="#f3f0e8" strokeWidth={2} isAnimationActive={false} />
-                  <Bar dataKey="normalMedian" fill={NORMAL} maxBarSize={24} radius={[4, 4, 0, 0]} stroke="#f3f0e8" strokeWidth={2} isAnimationActive={false} />
+                  <Bar dataKey="fastMedian" fill={FAST} maxBarSize={24} radius={[4, 4, 0, 0]} stroke="#f7fcfc" strokeWidth={2} isAnimationActive={false} />
+                  <Bar dataKey="normalMedian" fill={NORMAL} maxBarSize={24} radius={[4, 4, 0, 0]} stroke="#f7fcfc" strokeWidth={2} isAnimationActive={false} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -220,7 +221,7 @@ export function FairGateSim() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[26rem] text-sm">
               <thead>
-                <tr className="border-b border-ink text-left">
+                <tr className="border-b border-rule-strong text-left">
                   <th className="eyebrow py-2">Condition</th>
                   <th className="eyebrow py-2 text-right">Slow ÷ fast</th>
                   <th className="eyebrow py-2 text-right">Admitted ≤ 60 s</th>

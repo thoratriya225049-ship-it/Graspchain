@@ -20,32 +20,35 @@ test("student journey: read → hide (403) → write → score → feedback → 
   // F7: score first, then feedback, then the X-Ray link and the receipt.
   const score = page.getByLabel(/^Score \d+(\.\d)? out of 10$/);
   await expect(score).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByText("How this number was made")).toBeVisible();
+  await expect(page.getByText("How this score was made")).toBeVisible();
   await expect(
     page
       .getByRole("heading", { name: "What you understood" })
       .or(page.getByRole("heading", { name: "What you missed" }))
       .first(),
   ).toBeVisible();
-  await expect(page.getByRole("link", { name: "See it on the article" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open X-Ray" })).toBeVisible();
   await expect(page.getByText("Recorded on-chain")).toBeVisible({ timeout: 30_000 });
 
   // F8: X-Ray
-  await page.getByRole("link", { name: "See it on the article" }).click();
+  await page.getByRole("link", { name: "Open X-Ray" }).click();
   await expect(page).toHaveURL(new RegExp(`/attempts/${attemptId}/xray$`));
-  await expect(page.getByRole("heading", { name: "Your claims · your exact words" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Your answer, cut into claims" })).toBeVisible();
   // Keyboard path (also proves the links are reachable without a mouse); retried until hydrated.
-  const firstClaim = page.locator("aside ol button").first();
+  const firstClaim = page.getByRole("button", { name: /^Claim:/ }).first();
   await expect(async () => {
     await page.keyboard.press("Escape");
-    await firstClaim.blur();
     await firstClaim.focus();
-    await expect(firstClaim).toHaveAttribute("aria-pressed", "true", { timeout: 1000 });
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("dialog", { name: "Evidence inspector" })).toBeVisible({ timeout: 1000 });
   }).toPass({ timeout: 15_000 });
+  await page.keyboard.press("Escape");
 
   // F9: our Verify page passes V1–V3 against the chain.
   await page.goBack();
-  await page.getByRole("link", { name: "Verify this record" }).click();
+  await page.getByRole("link", { name: "View proof" }).click();
+  await expect(page).toHaveURL(new RegExp(`/attempts/${attemptId}/proof$`));
+  await page.getByRole("link", { name: "Open the verification" }).click();
   await expect(page.getByRole("heading", { name: /Verified on-chain/ })).toBeVisible();
   await expect(page.locator("li", { hasText: "Record integrity" })).toContainText("Pass");
 });

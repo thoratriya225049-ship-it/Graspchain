@@ -194,3 +194,19 @@ export interface TimelineEvent {
   severity: Severity;
   reason: string;
 }
+
+/** One row of the teacher review queue (GET /api/teacher/queue). */
+export interface QueueItem {
+  attemptId: string;
+  studentCode: string;
+  articleId: string;
+  articleTitle: string;
+  attemptNo: number;
+  createdAt: string;
+  status: string;
+  systemScore: number | null;
+  currentScore: number | null;
+  assessmentId: string | null;
+  reviewed: boolean;
+  reasons: string[];
+}

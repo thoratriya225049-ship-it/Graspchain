@@ -64,7 +64,7 @@ export function OverrideForm({
 
   return (
     <form onSubmit={submit} noValidate className="mt-5 space-y-5">
-      <div className="grid grid-cols-[8rem_minmax(0,1fr)] items-end gap-4">
+      <div className="grid grid-cols-[7rem_minmax(0,1fr)] items-end gap-4">
         <Field label="New score" htmlFor="ns">
           <input
             id="ns"
@@ -87,8 +87,18 @@ export function OverrideForm({
             ["CLEARED", "Clear — the events have an innocent explanation; certify the result"],
             ["UPHELD", "Uphold — the conditions were not trustworthy; the result is not certified"],
           ].map(([v, label]) => (
-            <label key={v} className="flex items-start gap-2">
-              <input type="radio" name="integrity" value={v} checked={decision === v} onChange={() => setDecision(v as typeof decision)} className="mt-1" />
+            <label
+              key={v}
+              className={`flex cursor-pointer items-start gap-2.5 rounded-[12px] px-3 py-2 transition-colors ${decision === v ? "bg-mint" : "hover:bg-paper-sunk"}`}
+            >
+              <input
+                type="radio"
+                name="integrity"
+                value={v}
+                checked={decision === v}
+                onChange={() => setDecision(v as typeof decision)}
+                className="mt-1 accent-[#12708A]"
+              />
               <span>{label}</span>
             </label>
           ))}
@@ -106,7 +116,7 @@ export function OverrideForm({
         />
       </Field>
       {error ? <Notice tone="bad">{error}</Notice> : null}
-      <Button type="submit" busy={busy}>
+      <Button type="submit" busy={busy} busyLabel="Recording…" className="w-full">
         Record correction
       </Button>
     </form>

@@ -36,10 +36,11 @@ export default async function ConsentPage({ searchParams }: { searchParams: Prom
     <Shell me={me}>
       <article className="frame-narrow pt-14 md:pt-20">
         <p className="eyebrow">Before you start</p>
-        <h1 className="mt-4 font-serif text-2xl md:text-3xl">How your work is handled</h1>
-        <dl className="mt-10 border-t border-ink">
+        <h1 className="display mt-4 text-[clamp(2.25rem,5vw,3.25rem)]">How your work is handled</h1>
+        <p className="mt-3 text-md text-ink-2">Five things to know. Nothing that identifies you is ever written on-chain.</p>
+        <dl className="mt-10 divide-y divide-rule rounded-[24px] bg-paper-raised px-6 ring-1 ring-rule">
           {rows.map(([k, v]) => (
-            <div key={k} className="grid gap-2 border-b border-rule py-5 md:grid-cols-[11rem_minmax(0,1fr)] md:gap-8">
+            <div key={k} className="grid gap-2 py-5 md:grid-cols-[11rem_minmax(0,1fr)] md:gap-8">
               <dt className="text-sm font-semibold">{k}</dt>
               <dd className="text-[0.9375rem] text-ink-2">{v}</dd>
             </div>

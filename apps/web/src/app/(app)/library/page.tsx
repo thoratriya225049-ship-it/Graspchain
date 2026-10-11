@@ -17,35 +17,39 @@ export default async function Library() {
       <header className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] md:items-end">
         <div>
           <p className="eyebrow">Library</p>
-          <h1 className="mt-3 font-serif text-2xl md:text-3xl">Short, applied articles</h1>
+          <h1 className="display mt-3 text-[clamp(2.25rem,5vw,3.5rem)]">Short, applied articles</h1>
         </div>
         <p className="text-sm text-ink-3">
-          Each article opens for a fixed reading time, then closes for good. You explain it from memory, in your own words, in 30–300 words.
+          Each opens for a fixed reading time, then closes for good. You explain it from memory, in your own words, in 30–300 words.
         </p>
       </header>
 
-      <ol className="mt-10 border-t border-ink">
+      <ol className="mt-10 divide-y divide-rule rounded-[24px] bg-paper-raised ring-1 ring-rule">
         {articles.map((a) => {
           const isRec = recommended?.articleId === a.id;
           return (
-            <li key={a.id} className="border-b border-rule">
-              <article className="grid gap-x-10 gap-y-4 py-8 md:grid-cols-[5rem_minmax(0,1fr)_14rem] md:py-10">
-                <p className="mono text-3xl leading-none text-ink-3 md:text-[2.75rem]" aria-hidden>
+            <li key={a.id}>
+              <article
+                className={`group grid gap-x-10 gap-y-4 px-6 py-7 transition-colors md:grid-cols-[4.5rem_minmax(0,1fr)_12rem] md:px-8 ${isRec ? "bg-mint/50" : "hover:bg-paper-sunk/60"}`}
+              >
+                <p className="mono text-2xl leading-none text-ink-3/70 md:text-[2.25rem]" aria-hidden>
                   {a.id}
                 </p>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-3">
                     <span className="eyebrow">{a.topic}</span>
-                    {isRec ? <span className="eyebrow text-signal-ink">· Recommended</span> : null}
+                    {isRec ? (
+                      <span className="rounded-full bg-teal px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-[0.12em] text-white">Recommended</span>
+                    ) : null}
                   </div>
-                  <h2 className="mt-2 font-serif text-xl leading-tight md:text-[2rem]">
-                    <Link href={`/start/${a.id}`} className="no-underline hover:underline hover:decoration-rule-strong hover:underline-offset-[6px]">
+                  <h2 className="mt-2 font-serif text-xl leading-tight md:text-[1.75rem]">
+                    <Link href={`/start/${a.id}`} className="no-underline hover:underline hover:decoration-teal/40 hover:underline-offset-[6px]">
                       {a.title}
                     </Link>
                   </h2>
-                  <p className="mt-3 max-w-2xl text-[0.9375rem] text-ink-2">{a.dek}</p>
-                  {isRec && recommended ? <p className="mt-4 max-w-2xl border-l-2 border-signal pl-3 text-sm text-ink-2">{recommended.reason}</p> : null}
-                  <dl className="mt-5 flex flex-wrap gap-x-8 gap-y-2 text-sm text-ink-3">
+                  <p className="mt-2 max-w-2xl text-[0.9375rem] text-ink-2">{a.dek}</p>
+                  {isRec && recommended ? <p className="mt-3 max-w-2xl text-sm text-ink-2">Why this one · {recommended.reason}</p> : null}
+                  <dl className="mt-4 flex flex-wrap gap-x-6 gap-y-1.5 text-sm text-ink-3">
                     <div className="flex gap-2">
                       <dt>Read</dt>
                       <dd className="num mono text-ink">{mmss(a.readSeconds)}</dd>
@@ -82,7 +86,10 @@ export default async function Library() {
                       <p className="text-sm text-ink-3">Not attempted</p>
                     )}
                   </div>
-                  <Link href={`/start/${a.id}`} className="inline-flex items-center gap-2 text-[0.9375rem] font-medium">
+                  <Link
+                    href={`/start/${a.id}`}
+                    className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[0.9375rem] font-medium text-teal no-underline hover:bg-mint"
+                  >
                     {a.attemptsByMe ? "Try again" : "Start"} <span aria-hidden>→</span>
                   </Link>
                 </div>

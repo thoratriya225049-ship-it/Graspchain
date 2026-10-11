@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { buttonClass } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Bits";
 import { page, requireMe } from "@/lib/api";
-import { FairGateSim, RatingDesk } from "./ResearchClient";
+import Link from "next/link";
+import { FairGateSim } from "./ResearchClient";
 
 export const metadata: Metadata = { title: "Research" };
 
@@ -55,7 +56,7 @@ export default async function ResearchPage() {
       <header className="grid gap-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
         <div>
           <p className="eyebrow">Research</p>
-          <h1 className="mt-3 font-serif text-2xl md:text-3xl">Is it a good assessor, and is it fair?</h1>
+          <h1 className="display mt-3 text-[clamp(2.25rem,5vw,3.25rem)]">Is it a good assessor, and is it fair?</h1>
           <p className="mt-3 max-w-2xl text-[0.9375rem] text-ink-2">
             Blind human ratings against the pipeline (E1–E2), fair entry under load (E5a) and reading time across networks (E5b). Numbers are computed from what
             is in this database — nothing here is pre-filled.
@@ -71,17 +72,20 @@ export default async function ResearchPage() {
         </div>
       </header>
 
-      <section className="mt-12 border-t border-ink pt-8" aria-labelledby="rate">
-        <h2 id="rate" className="font-serif text-xl">
-          Blind rating
-        </h2>
-        <p className="mt-1 max-w-2xl text-sm text-ink-3">
-          First attempts of consenting students, in an order shuffled per rater. You never see the system&rsquo;s score while rating.
-        </p>
-        <RatingDesk />
-      </section>
+      <Link
+        href="/research/rate"
+        className="group mt-10 flex items-center justify-between gap-4 rounded-[24px] bg-mint px-6 py-5 no-underline transition-colors hover:bg-[#cdeeed]"
+      >
+        <span>
+          <span className="block font-serif text-xl text-ink">Blind rating</span>
+          <span className="mt-1 block text-sm text-ink-2">Rate first attempts without seeing the system&rsquo;s score — its own calm mode.</span>
+        </span>
+        <span className="text-teal transition-transform group-hover:translate-x-0.5" aria-hidden>
+          →
+        </span>
+      </Link>
 
-      <section className="mt-16 border-t border-ink pt-8" aria-labelledby="agree">
+      <section className="mt-16 border-t border-rule pt-8" aria-labelledby="agree">
         <h2 id="agree" className="font-serif text-xl">
           Agreement with humans
         </h2>
@@ -95,7 +99,7 @@ export default async function ResearchPage() {
         <div className="mt-6 overflow-x-auto">
           <table className="w-full min-w-[40rem] text-sm">
             <thead>
-              <tr className="border-b border-ink text-left">
+              <tr className="border-b border-rule-strong text-left">
                 {["Comparison", "n", "Spearman ρ", "95% CI", "Pearson r", "MAE", "QWK", "Within ±1"].map((h) => (
                   <th key={h} className={`eyebrow py-2 ${h === "Comparison" ? "" : "text-right"}`}>
                     {h}
@@ -136,7 +140,7 @@ export default async function ResearchPage() {
         </p>
       </section>
 
-      <section className="mt-16 border-t border-ink pt-8" aria-labelledby="gate">
+      <section className="mt-16 border-t border-rule pt-8" aria-labelledby="gate">
         <h2 id="gate" className="font-serif text-xl">
           Fair entry under load · simulation
         </h2>
@@ -147,7 +151,7 @@ export default async function ResearchPage() {
         <FairGateSim />
       </section>
 
-      <section className="mt-16 border-t border-ink pt-8" aria-labelledby="clock">
+      <section className="mt-16 border-t border-rule pt-8" aria-labelledby="clock">
         <h2 id="clock" className="font-serif text-xl">
           Reading time across networks · real sessions
         </h2>
@@ -158,7 +162,7 @@ export default async function ResearchPage() {
         <div className="mt-6 overflow-x-auto">
           <table className="w-full min-w-[36rem] text-sm">
             <thead>
-              <tr className="border-b border-ink text-left">
+              <tr className="border-b border-rule-strong text-left">
                 {["Clock mode", "Sessions", "Median delay", "Median given back", "Median loss", "Worst loss"].map((h) => (
                   <th key={h} className={`eyebrow py-2 ${h === "Clock mode" ? "" : "text-right"}`}>
                     {h}

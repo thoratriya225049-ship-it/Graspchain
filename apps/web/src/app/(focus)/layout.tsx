@@ -1,4 +1,4 @@
-import { SystemRail } from "@/components/shell/SystemRail";
+import { ServerUnreachable, SystemStatus } from "@/components/shell/SystemRail";
 import { Wordmark } from "@/components/shell/Wordmark";
 import { getConfig, requireMe } from "@/lib/api";
 
@@ -8,12 +8,15 @@ export default async function FocusLayout({ children }: { children: React.ReactN
   const config = await getConfig();
   return (
     <div className="flex min-h-dvh flex-col">
-      <SystemRail config={config} />
       <header className="border-b border-rule">
         <div className="frame flex h-14 items-center justify-between">
           <Wordmark href="/home" />
-          <span className="mono text-sm text-ink-3">{me.code}</span>
+          <div className="flex items-center gap-2">
+            <SystemStatus config={config} />
+            <span className="mono text-sm text-ink-3">{me.code}</span>
+          </div>
         </div>
+        {!config ? <ServerUnreachable /> : null}
       </header>
       <main id="main" className="flex-1">
         <p className="gc-print-note frame pt-10 font-serif text-xl">Printing is disabled during an assessment.</p>

@@ -1,18 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { STATUS_COPY, formatDateTime } from "@graspchain/shared";
+import { ReceiptSlip } from "@/components/assessment/ReceiptSlip";
+import { CurvedSeal } from "@/components/fx/CurvedSeal";
 import { Shell } from "@/components/shell/Shell";
 import { Hash } from "@/components/ui/Bits";
 import { Icon } from "@/components/ui/Icon";
-import { CHECK, Mark, TONE_TEXT, type Tone } from "@/components/ui/Status";
+import { CHECK, Mark, type Tone } from "@/components/ui/Status";
 import { ApiError, api, getConfig, getMe } from "@/lib/api";
 import { verifierLink } from "@/lib/links";
 import type { Verification } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Verify" };
 
-const STATUS_TONE: Record<string, Tone> = { verified: "ok", superseded: "ok", pending: "warn", not_found: "warn", tampered: "bad", unavailable: "none" };
-const STATUS_ICON = { verified: "check", superseded: "check", pending: "vague", not_found: "vague", tampered: "cross", unavailable: "alert" } as const;
+const STATUS_TONE: Record<string, Tone> = { verified: "ok", superseded: "ok", pending: "warn", not_found: "warn", tampered: "bad", unavailable: "warn" };
 
 /** S9: our server's copy of a receipt, checked against AssessmentRegistry (V1–V4). Public; no PII. */
 export default async function VerifyPage({ params }: { params: Promise<{ id: string }> }) {
@@ -23,29 +24,32 @@ export default async function VerifyPage({ params }: { params: Promise<{ id: str
   try {
     v = await api<Verification>(`/api/verify/${id}`);
   } catch (e) {
-    error = e instanceof ApiError && e.status === 404 ? "No receipt with this assessment id is held by this deployment." : (e as Error).message;
+    error = e instanceof ApiError && e.status === 404 ? "This deployment holds no receipt with that assessment ID." : (e as Error).message;
   }
+
+  if (!v)
+    return (
+      <Shell me={me} bare>
+        <section className="on-abyss">
+          <div className="frame py-20">
+            <p className="text-2xs font-semibold uppercase tracking-[0.2em] text-aqua">Verification</p>
+            <h1 className="display mt-4 text-[clamp(2rem,4vw,3rem)] text-on-dark">Nothing to verify</h1>
+            <p className="mt-3 max-w-lg text-on-dark-2">{error}</p>
+            <Link href="/verify" className="mt-8 inline-flex items-center gap-1 font-medium text-aqua underline decoration-aqua/40 underline-offset-4">
+              Check another receipt <Icon name="arrow" size={14} />
+            </Link>
+          </div>
+        </section>
+      </Shell>
+    );
 
   return (
     <Shell me={me}>
-      <div className="frame pt-10 md:pt-14">
-        <p className="eyebrow">Verification · server copy</p>
-        {!v ? (
-          <div className="mt-6">
-            <h1 className="font-serif text-2xl">Nothing to verify</h1>
-            <p className="mt-3 text-ink-2">{error}</p>
-            <Link href="/verify" className="link mt-6 inline-block">
-              Look up another id
-            </Link>
-          </div>
-        ) : (
-          <VerifyBody
-            v={v}
-            verifier={config ? verifierLink(config.verifierUrl, config.publicWebUrl, v.assessmentId) : null}
-            chainName={config?.chain.name ?? `Chain ${v.chain.chainId}`}
-          />
-        )}
-      </div>
+      <VerifyBody
+        v={v}
+        verifier={config ? verifierLink(config.verifierUrl, config.publicWebUrl, v.assessmentId) : null}
+        chainName={config?.chain.name ?? `Chain ${v.chain.chainId}`}
+      />
     </Shell>
   );
 }
@@ -54,87 +58,64 @@ function VerifyBody({ v, verifier, chainName }: { v: Verification; verifier: str
   const tone = STATUS_TONE[v.status];
   const copy = STATUS_COPY[v.status];
   const r = v.receipt;
-  const fields: [string, React.ReactNode][] = [
-    ["Assessment id", <Hash key="a" value={r.assessmentId} label="assessment id" />],
-    [
-      "Article",
-      <span key="b" className="mono">
-        {r.articleId} · attempt {r.attemptNo}
-      </span>,
-    ],
-    [
-      "Comprehension score",
-      <span key="c" className="num font-serif text-lg">
-        {r.assessment.finalScore.toFixed(1)}
-      </span>,
-    ],
-    [
-      "Integrity",
-      r.assessment.integrity ? (
-        <span key="j" className="text-sm">
-          {r.assessment.integrity.status.replace(/_/g, " ").toLowerCase()} · {r.assessment.integrity.outcome.replace(/_/g, " ").toLowerCase()} ·{" "}
-          <span className="mono text-ink-3">{r.assessment.integrity.rulesVersion}</span>
-          {r.assessment.review?.integrityDecision ? ` · teacher ${r.assessment.review.integrityDecision.toLowerCase()}` : ""}
-        </span>
-      ) : (
-        <span key="j" className="text-sm text-ink-3">
-          not recorded (receipt predates integrity monitoring)
-        </span>
-      ),
-    ],
-    [
-      "Judge · LLM",
-      <span key="d" className="mono text-sm">
-        {r.assessment.models.jev} · {r.assessment.models.llm}
-      </span>,
-    ],
-    [
-      "Rubric",
-      <span key="e" className="mono text-sm">
-        v{r.assessment.rubricVersion} · {r.assessment.segmentation}
-      </span>,
-    ],
-    ["Student ref", <Hash key="f" value={r.studentRef} short label="student reference" />],
-    ["Answer hash", <Hash key="g" value={r.answerHash} short label="answer hash" />],
-    ["Article hash", <Hash key="h" value={r.articleHash} short label="article hash" />],
-    ["Created", <span key="i">{formatDateTime(r.createdAt)}</span>],
-  ];
+  const ok = tone === "ok";
+  const integrity = r.assessment.integrity
+    ? `${r.assessment.integrity.status.replace(/_/g, " ").toLowerCase()} · ${r.assessment.integrity.outcome.replace(/_/g, " ").toLowerCase()} · ${r.assessment.integrity.rulesVersion}${r.assessment.review?.integrityDecision ? ` · teacher ${r.assessment.review.integrityDecision.toLowerCase()}` : ""}`
+    : "not recorded (receipt predates integrity monitoring)";
   return (
     <>
-      <header className="mt-6 grid gap-6 border-b border-ink pb-10 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
-        <div>
-          <h1 className={`flex items-center gap-3 font-serif text-2xl md:text-3xl ${TONE_TEXT[tone]}`}>
-            <Icon name={STATUS_ICON[v.status]} size={34} />
-            {copy.title}
-          </h1>
-          <p className="mt-3 max-w-2xl text-md text-ink-2">{copy.body}</p>
-          {v.tampered ? (
-            <p className="mt-3 text-sm text-bad">
-              The server copy was altered by the admin Tamper tool ({v.tampered.field}). The student&rsquo;s downloaded receipt is unaffected and still
-              verifies.
-            </p>
-          ) : null}
-        </div>
-        <div className="flex flex-col gap-2 text-sm md:items-end">
-          {verifier ? (
-            <a href={verifier} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-medium">
-              Check independently, without Graspchain <Icon name="external" size={13} />
+      <section className="on-abyss">
+        <div className="frame flex flex-col gap-8 py-14 md:flex-row md:items-center md:justify-between md:py-16">
+          <div className="flex items-start gap-6">
+            {ok ? (
+              <CurvedSeal size={120} spin surface="dark" label={copy.title} />
+            ) : (
+              <span
+                className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full ${tone === "bad" ? "bg-bad-mark/20 text-bad-glow" : "bg-warn-mark/15 text-warn"}`}
+              >
+                <Icon name={tone === "bad" ? "cross" : "alert"} size={28} />
+              </span>
+            )}
+            <div>
+              <p className="text-2xs font-semibold uppercase tracking-[0.2em] text-aqua">Verification · Graspchain&rsquo;s copy</p>
+              <h1 className={`display mt-3 text-[clamp(2rem,4.5vw,3.25rem)] ${ok ? "text-ok-glow" : tone === "bad" ? "text-bad-glow" : "text-warn"}`}>
+                {copy.title}
+              </h1>
+              <p className="mt-2 max-w-xl text-on-dark-2">{copy.body}</p>
+              {v.tampered ? (
+                <p className="mt-3 max-w-xl text-sm text-bad-glow">
+                  The server copy was altered by the admin tamper tool ({v.tampered.field}). The student&rsquo;s downloaded receipt is unaffected and still
+                  verifies.
+                </p>
+              ) : null}
+            </div>
+          </div>
+          <div className="flex flex-col gap-3 text-sm md:items-end">
+            {verifier ? (
+              <a
+                href={verifier}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-11 items-center gap-2 rounded-[14px] bg-teal px-5 font-medium text-white no-underline hover:bg-[#0e5f75]"
+              >
+                Check independently, without Graspchain <Icon name="external" size={13} />
+              </a>
+            ) : null}
+            <a href={`/api/receipts/${v.assessmentId}`} className="text-on-dark-2 underline decoration-white/25 underline-offset-4 hover:text-on-dark">
+              Server copy (JSON)
             </a>
-          ) : null}
-          <a href={`/api/receipts/${v.assessmentId}`} className="link text-ink-3">
-            Server copy (JSON)
-          </a>
+          </div>
         </div>
-      </header>
+      </section>
 
-      <div className="grid gap-14 pt-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-20">
+      <div className="frame grid gap-14 pt-12 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-16">
         <section aria-labelledby="checks">
           <h2 id="checks" className="eyebrow">
             Checks against {chainName}
           </h2>
-          <ol className="mt-4 border-t border-ink">
+          <ol className="mt-4 space-y-2">
             {v.checks.map((c) => (
-              <li key={c.id} className="grid grid-cols-[2.75rem_minmax(0,1fr)] gap-3 border-b border-rule py-5">
+              <li key={c.id} className="grid grid-cols-[2.75rem_minmax(0,1fr)] gap-3 rounded-[16px] bg-paper-raised p-4 ring-1 ring-rule">
                 <span className="mono pt-0.5 text-sm text-ink-3">{c.id}</span>
                 <div>
                   <div className="flex flex-wrap items-baseline justify-between gap-3">
@@ -149,7 +130,7 @@ function VerifyBody({ v, verifier, chainName }: { v: Verification; verifier: str
           </ol>
 
           <h2 className="eyebrow mt-12">Hashes</h2>
-          <dl className="mt-4 grid gap-4 border-t border-ink pt-4 text-sm">
+          <dl className="mt-4 grid gap-4 text-sm">
             <div>
               <dt className="text-ink-3">Recomputed from this copy (JCS + SHA-256)</dt>
               <dd className="mt-1">
@@ -205,43 +186,45 @@ function VerifyBody({ v, verifier, chainName }: { v: Verification; verifier: str
           <h2 id="doc" className="eyebrow">
             The receipt
           </h2>
-          <div className="mt-4 border border-ink bg-paper-raised p-6 shadow-doc">
-            <p className="mono text-xs text-ink-3">{r.schema}</p>
-            <dl className="mt-4">
-              {fields.map(([k, val]) => (
-                <div key={k} className="grid grid-cols-[8.5rem_minmax(0,1fr)] items-baseline gap-3 border-b border-rule py-2.5 text-sm last:border-0">
-                  <dt className="text-ink-3">{k}</dt>
-                  <dd className="min-w-0">{val}</dd>
-                </div>
-              ))}
-            </dl>
-            <div className="mt-5 border-t border-ink pt-4 text-sm">
-              <p className="eyebrow">Fairness on record</p>
-              <p className="mt-2 text-ink-2">
-                {r.fairness.admissionMode === "fair" ? "Windowed random entry" : "Arrival-order entry"}
-                {r.fairness.admissionWindowId ? <span className="mono"> · {r.fairness.admissionWindowId}</span> : null} ·{" "}
-                {r.fairness.clockMode === "fair" ? "fair clock" : "server clock"} · {r.fairness.readSecondsGranted} s granted · +
-                {(r.fairness.latencyCompMs / 1000).toFixed(1)} s compensated
-              </p>
-            </div>
-            {r.assessment.review ? (
-              <div className="mt-5 border-t border-ink pt-4 text-sm">
-                <p className="eyebrow text-signal-ink">Teacher correction</p>
-                <p className="mt-2 text-ink-2">
-                  {r.assessment.review.previousScore.toFixed(1)} → {r.assessment.finalScore.toFixed(1)} · “{r.assessment.review.reason}”
-                </p>
-              </div>
-            ) : null}
-          </div>
+          <ReceiptSlip
+            className="mt-4"
+            assessmentId={r.assessmentId}
+            hash={v.computedHash}
+            state={{ tone, label: ok ? "Matches the chain" : copy.title }}
+            rows={[
+              { k: "Article", v: `${r.articleId} · attempt ${r.attemptNo}` },
+              { k: "Score", v: r.assessment.finalScore.toFixed(1) },
+              { k: "Integrity", v: integrity },
+              { k: "Judge · LLM", v: `${r.assessment.models.jev} · ${r.assessment.models.llm}` },
+              { k: "Rubric", v: `v${r.assessment.rubricVersion} · ${r.assessment.segmentation}` },
+              { k: "Student ref", v: `${r.studentRef.slice(0, 14)}…` },
+              { k: "Answer hash", v: `${r.answerHash.slice(0, 14)}…` },
+              { k: "Article hash", v: `${r.articleHash.slice(0, 14)}…` },
+              { k: "Created", v: formatDateTime(r.createdAt) },
+              {
+                k: "Fairness",
+                v: `${r.fairness.admissionMode === "fair" ? "windowed random entry" : "arrival-order entry"}${r.fairness.admissionWindowId ? ` · ${r.fairness.admissionWindowId}` : ""} · ${r.fairness.clockMode === "fair" ? "fair clock" : "server clock"} · ${r.fairness.readSecondsGranted} s · +${(r.fairness.latencyCompMs / 1000).toFixed(1)} s`,
+              },
+              ...(r.assessment.review
+                ? [
+                    {
+                      k: "Correction",
+                      v: `${r.assessment.review.previousScore.toFixed(1)} → ${r.assessment.finalScore.toFixed(1)} · “${r.assessment.review.reason}”`,
+                    },
+                  ]
+                : []),
+            ]}
+          />
 
           {v.lineage.length > 1 ? (
             <div className="mt-10">
               <h2 className="eyebrow">Versions of this assessment</h2>
-              <ol className="mt-4 border-l border-ink pl-5">
+              <ol className="relative mt-4 pl-6">
+                <span aria-hidden className="absolute bottom-2 left-[5px] top-2 w-px" style={{ background: "var(--thread)" }} />
                 {v.lineage.map((l, i) => (
                   <li key={l.assessmentId} className="relative pb-5 last:pb-0">
                     <span
-                      className={`absolute -left-[25px] top-1.5 h-2 w-2 rounded-full ${l.assessmentId === v.assessmentId ? "bg-signal" : "bg-ink"}`}
+                      className={`absolute -left-6 top-1.5 h-[11px] w-[11px] rounded-full border-2 ${l.assessmentId === v.assessmentId ? "border-teal bg-teal" : "border-teal bg-paper"}`}
                       aria-hidden
                     />
                     <p className="text-sm">

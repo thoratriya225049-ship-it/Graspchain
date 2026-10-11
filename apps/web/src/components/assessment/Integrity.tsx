@@ -67,15 +67,29 @@ const since = (ms: number, t0: number) => {
 };
 
 /** What the conditions were, how they were rated, and what could not be observed. */
-export function IntegrityPanel({ integrity, events }: { integrity: IntegrityAssessment | null | undefined; events: TimelineEvent[] }) {
+export function IntegrityPanel({
+  integrity,
+  events,
+  embedded = false,
+}: {
+  integrity: IntegrityAssessment | null | undefined;
+  events: TimelineEvent[];
+  embedded?: boolean;
+}) {
   if (!integrity) return null;
   const weighed = integrity.findings.filter((f) => f.severity !== "INFO");
   return (
-    <section aria-labelledby="conditions" className="mt-16 border-t border-ink pt-8">
+    <section
+      aria-labelledby={embedded ? undefined : "conditions"}
+      aria-label={embedded ? "Assessment conditions" : undefined}
+      className={embedded ? "" : "mt-16 border-t border-rule pt-8"}
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-4">
-        <h2 id="conditions" className="eyebrow text-ink">
-          Assessment conditions
-        </h2>
+        {embedded ? null : (
+          <h2 id="conditions" className="eyebrow text-ink">
+            Assessment conditions
+          </h2>
+        )}
         <p className="text-xs text-ink-3">Judged separately from comprehension · never deducted from the score</p>
       </div>
       <div className="mt-5 grid gap-10 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
@@ -96,7 +110,7 @@ export function IntegrityPanel({ integrity, events }: { integrity: IntegrityAsse
         </div>
         <div>
           {weighed.length ? (
-            <ul className="divide-y divide-rule border-y border-rule">
+            <ul className="divide-y divide-rule rounded-[14px] bg-paper-raised px-4 ring-1 ring-rule">
               {weighed.map((f, i) => (
                 <li key={i} className="grid grid-cols-[6.5rem_minmax(0,1fr)_auto] items-baseline gap-3 py-2.5 text-sm">
                   <span className={`mono text-xs ${TONE_TEXT[SEVERITY_TONE[f.severity]]}`}>{f.severity}</span>
@@ -187,19 +201,25 @@ const CLASS_WORD: Record<string, string> = {
 };
 
 /** The evidence the decision engine used, and the rule that produced each classification. */
-export function EvidenceTrail({ evidence }: { evidence: EvidenceDecision | null | undefined }) {
+export function EvidenceTrail({ evidence, embedded = false }: { evidence: EvidenceDecision | null | undefined; embedded?: boolean }) {
   if (!evidence) return null;
   return (
-    <section aria-labelledby="evidence" className="mt-16 border-t border-ink pt-8">
+    <section
+      aria-labelledby={embedded ? undefined : "evidence"}
+      aria-label={embedded ? "Evidence trail" : undefined}
+      className={embedded ? "" : "mt-16 border-t border-rule pt-8"}
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-4">
-        <h2 id="evidence" className="eyebrow text-ink">
-          Evidence trail
-        </h2>
+        {embedded ? null : (
+          <h2 id="evidence" className="eyebrow text-ink">
+            Evidence trail
+          </h2>
+        )}
         <p className="text-xs text-ink-3">
           {evidence.extractor} extracted the evidence · {evidence.version} judged it · checked against the article only
         </p>
       </div>
-      <ul className="mt-5 divide-y divide-rule border-y border-rule">
+      <ul className="mt-5 divide-y divide-rule rounded-[14px] bg-paper-raised px-4 ring-1 ring-rule">
         {evidence.keyPoints.map((k) => (
           <li key={k.id} className="grid gap-2 py-3 text-sm md:grid-cols-[12rem_minmax(0,1fr)]">
             <span>
@@ -217,7 +237,7 @@ export function EvidenceTrail({ evidence }: { evidence: EvidenceDecision | null 
         <summary className="cursor-pointer text-ink-2">Every claim and its article evidence ({evidence.claims.length})</summary>
         <ul className="mt-3 space-y-3">
           {evidence.claims.map((c) => (
-            <li key={c.claimId} className="border-l-2 border-rule pl-3">
+            <li key={c.claimId} className="border-l-2 border-lavender/60 pl-3">
               <p>
                 <span className="mono text-xs text-ink-3">{c.claimId}</span>{" "}
                 <span className={`font-medium ${TONE_TEXT[CLASS_TONE[c.classification]]}`}>{CLASS_WORD[c.classification]}</span>{" "}

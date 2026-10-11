@@ -6,6 +6,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ArticleSummary } from "@graspchain/shared";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Bits";
+import { Icon } from "@/components/ui/Icon";
+import { JourneySteps, JourneyThread } from "@/components/fx/JourneyThread";
 import { call, store } from "@/lib/http";
 import { requestFullscreen } from "@/lib/integrity";
 import type { SessionView, TicketView } from "@/lib/types";
@@ -98,93 +100,85 @@ export function Gate({ article, capS, windowS, active }: { article: ArticleSumma
   }
 
   return (
-    <div className="frame grid gap-14 pb-24 pt-12 md:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] md:gap-20 md:pt-20">
-      <section className="animate-rise">
+    <>
+      <JourneyThread stage="understand" />
+      <div className="frame-narrow pb-24 pt-10 md:pt-16">
+        <JourneySteps stage="understand" className="mb-8" />
         <p className="eyebrow">
           <span className="mono normal-case tracking-normal">{article.id}</span> · {article.topic}
         </p>
-        <h1 className="mt-3 font-serif text-2xl leading-[1.08] md:text-[2.75rem]">{article.title}</h1>
-        <ol className="mt-10 border-t border-ink">
+        <h1 className="display mt-3 text-[clamp(2.25rem,5vw,3.25rem)] leading-[1.05]">{article.title}</h1>
+        <p className="mt-4 max-w-xl text-md text-ink-2">{article.dek}</p>
+
+        <ol className="mt-10 grid gap-3 sm:grid-cols-4">
           {[
-            [
-              "Read",
-              `You have ${mmss(article.readSeconds)} with the article (${article.wordCount} words). The clock starts when it has arrived on your screen.`,
-            ],
-            ["It closes", "When time is up — or when you say you are done — the article is removed. The server refuses to send it again."],
-            ["Explain", "Write what it is about and why it matters, in your own words: 30 to 300 words. Copying and pasting are disabled."],
-            [
-              "Stay with it",
-              "The assessment asks for full screen. Leaving the tab or window, and similar events, are recorded and rated by published rules — one accident never invalidates a result.",
-            ],
-            ["See exactly why", "A score within seconds, then feedback, then an X-Ray of the article showing what you understood, missed and got wrong."],
-          ].map(([h, b], i) => (
-            <li key={h} className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-4 border-b border-rule py-5">
-              <span className="mono pt-0.5 text-sm text-ink-3">0{i + 1}</span>
-              <div>
-                <h2 className="text-[0.9375rem] font-semibold">{h}</h2>
-                <p className="mt-1 text-[0.9375rem] text-ink-2">{b}</p>
-              </div>
+            { icon: "book" as const, h: `Read · ${mmss(article.readSeconds)}`, b: "The clock starts once it has arrived." },
+            { icon: "lock" as const, h: "It closes", b: "For good — it can't be opened again." },
+            { icon: "pen" as const, h: "Explain", b: "30–300 words, your own words." },
+            { icon: "eye" as const, h: "See why", b: "Score, feedback, then an X-Ray." },
+          ].map((s) => (
+            <li key={s.h} className="rounded-[18px] bg-mint/60 p-4">
+              <Icon name={s.icon} size={18} className="text-teal" />
+              <p className="mt-3 text-[0.9375rem] font-medium text-ink">{s.h}</p>
+              <p className="mt-1 text-sm text-ink-2">{s.b}</p>
             </li>
           ))}
         </ol>
-        <p className="mt-6 max-w-xl text-sm text-ink-3">
-          Fair clock: up to {capS} s of delivery delay is added back to your reading time, so a slow connection does not cost you reading time.
-        </p>
-      </section>
 
-      <section aria-live="polite" className="animate-rise self-start [animation-delay:80ms] md:sticky md:top-10">
-        {phase.k === "brief" || phase.k === "error" ? (
-          <div>
-            <p className="eyebrow">Ready when you are</p>
-            <p className="mt-3 max-w-sm text-[0.9375rem] text-ink-2">
-              Find a quiet moment. Once the article opens, the clock runs on the server — refreshing does not give you more time.
-            </p>
-            {active ? (
-              <div className="mt-6">
-                <Notice tone="warn" title="You have an assessment in progress">
-                  {active.articleId === article.id ? "This article" : `Article ${active.articleId}`} is still open ({active.state.toLowerCase()}). Starting now
-                  closes it for good.{" "}
-                  <Link href={`/session/${active.sessionId}`} className="link">
-                    Resume it instead
-                  </Link>
-                </Notice>
+        <section aria-live="polite" className="mt-10">
+          {phase.k === "brief" || phase.k === "error" ? (
+            <div>
+              {active ? (
+                <div className="mb-6">
+                  <Notice tone="warn" title="You have an assessment in progress">
+                    {active.articleId === article.id ? "This article" : `Article ${active.articleId}`} is still open ({active.state.toLowerCase()}). Starting
+                    now closes it for good.{" "}
+                    <Link href={`/session/${active.sessionId}`} className="link">
+                      Resume it instead
+                    </Link>
+                  </Notice>
+                </div>
+              ) : null}
+              {phase.k === "error" ? (
+                <div className="mb-6">
+                  <Notice tone="bad" title="Couldn't start">
+                    {phase.message}
+                  </Notice>
+                </div>
+              ) : null}
+              <div className="flex flex-wrap items-center gap-6">
+                <Button size="lg" onClick={join} busy={busy} busyLabel="Joining…" iconAfter="arrow">
+                  Open the article
+                </Button>
+                <Link href="/library" className="link text-[0.9375rem] text-ink-3">
+                  Not now
+                </Link>
               </div>
-            ) : null}
-            {phase.k === "error" ? (
-              <div className="mt-6">
-                <Notice tone="bad" title="Couldn't start">
-                  {phase.message}
-                </Notice>
-              </div>
-            ) : null}
-            <div className="mt-8 flex flex-wrap items-center gap-6">
-              <Button size="lg" onClick={join} busy={busy} iconAfter="arrow">
-                Open the article
-              </Button>
-              <Link href="/library" className="link text-[0.9375rem]">
-                Not now
-              </Link>
+              <p className="mt-5 max-w-xl text-sm text-ink-3">
+                It asks for full screen. Leaving the tab or window is noted under published rules — one accident never invalidates a result. Up to {capS} s of
+                delivery delay is given back.
+              </p>
             </div>
-          </div>
-        ) : phase.k === "queue" ? (
-          <Ticket t={phase.t} windowS={windowS} onLeave={leave} />
-        ) : phase.k === "starting" ? (
-          <div className="border-t border-ink pt-6">
-            <p className="eyebrow text-signal-ink">Admitted</p>
-            <p className="mt-2 font-serif text-xl">Opening the article…</p>
-          </div>
-        ) : (
-          <div>
-            <Notice tone="warn" title="Your slot expired">
-              Admission is held for 30 seconds. Rejoin to get a new place — you keep nothing and lose nothing.
-            </Notice>
-            <Button className="mt-6" onClick={join} busy={busy}>
-              Rejoin the queue
-            </Button>
-          </div>
-        )}
-      </section>
-    </div>
+          ) : phase.k === "queue" ? (
+            <Ticket t={phase.t} windowS={windowS} onLeave={leave} />
+          ) : phase.k === "starting" ? (
+            <div className="flex items-center gap-3 rounded-[18px] bg-mint px-5 py-4">
+              <span className="h-2 w-2 rounded-full bg-teal" style={{ animation: "ticker 1.2s infinite" }} aria-hidden />
+              <p className="font-serif text-xl">Admitted — opening the article…</p>
+            </div>
+          ) : (
+            <div>
+              <Notice tone="warn" title="Your slot expired">
+                Admission is held for 30 seconds. Rejoin to get a new place — you keep nothing and lose nothing.
+              </Notice>
+              <Button className="mt-6" onClick={join} busy={busy}>
+                Rejoin the queue
+              </Button>
+            </div>
+          )}
+        </section>
+      </div>
+    </>
   );
 }
 
@@ -194,11 +188,13 @@ function Ticket({ t, windowS, onLeave }: { t: TicketView; windowS: number; onLea
   return (
     <div>
       <p className="eyebrow">Fair entry · ticket</p>
-      <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] border border-ink bg-paper-raised shadow-doc">
+      <div className="on-abyss mt-4 grid grid-cols-[minmax(0,1fr)_auto] overflow-hidden rounded-[24px] shadow-doc">
         <div className="p-6">
-          <p className="eyebrow">{ordering ? "Window open" : "Your place"}</p>
-          <p className="num mono mt-2 text-[4.5rem] leading-none tracking-[-0.04em]">{ordering ? "—" : t.ahead === 0 ? "Next" : `#${(t.ahead ?? 0) + 1}`}</p>
-          <p className="mt-3 text-sm text-ink-2">
+          <p className="text-2xs font-semibold uppercase tracking-[0.14em] text-sky">{ordering ? "Window open" : "Your place"}</p>
+          <p className="num mono mt-2 text-[4rem] leading-none tracking-[-0.04em] text-on-dark">
+            {ordering ? "—" : t.ahead === 0 ? "Next" : `#${(t.ahead ?? 0) + 1}`}
+          </p>
+          <p className="mt-3 text-sm text-on-dark-2">
             {ordering
               ? `Everyone joining in this ${t.mode === "fair" ? `${windowS}-second window` : "moment"} is being ordered — ${closesIn.toFixed(1)} s left.`
               : t.ahead === 0
@@ -206,24 +202,24 @@ function Ticket({ t, windowS, onLeave }: { t: TicketView; windowS: number; onLea
                 : `${t.ahead} ahead of you · about ${mmss(t.estWaitSec)}`}
           </p>
         </div>
-        <dl className="w-36 space-y-3 border-l border-dashed border-rule-strong p-5 text-xs">
+        <dl className="w-36 space-y-3 border-l border-dashed border-white/20 p-5 text-xs">
           <div>
-            <dt className="eyebrow">Ticket</dt>
-            <dd className="mono mt-0.5">{t.ticketId.slice(0, 8)}</dd>
+            <dt className="text-2xs uppercase tracking-[0.14em] text-on-dark-2">Ticket</dt>
+            <dd className="mono mt-0.5 text-on-dark">{t.ticketId.slice(0, 8)}</dd>
           </div>
           <div>
-            <dt className="eyebrow">Window</dt>
-            <dd className="mono mt-0.5 break-all">{t.windowId ?? "—"}</dd>
+            <dt className="text-2xs uppercase tracking-[0.14em] text-on-dark-2">Window</dt>
+            <dd className="mono mt-0.5 break-all text-on-dark">{t.windowId ?? "—"}</dd>
           </div>
           <div>
-            <dt className="eyebrow">In session</dt>
-            <dd className="num mono mt-0.5">
+            <dt className="text-2xs uppercase tracking-[0.14em] text-on-dark-2">In session</dt>
+            <dd className="num mono mt-0.5 text-on-dark">
               {t.inService}/{t.concurrency}
             </dd>
           </div>
           <div>
-            <dt className="eyebrow">Order</dt>
-            <dd className="mt-0.5">{t.mode === "fair" ? "Shuffled" : "Arrival"}</dd>
+            <dt className="text-2xs uppercase tracking-[0.14em] text-on-dark-2">Order</dt>
+            <dd className="mt-0.5 text-on-dark">{t.mode === "fair" ? "Shuffled" : "Arrival"}</dd>
           </div>
         </dl>
       </div>

@@ -11,7 +11,9 @@ export const metadata: Metadata = { title: "Desk" };
 
 const DIMS = ["coverage", "correctness", "reasoning", "ownWords"] as const;
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+const LEVEL = ["", "Introductory", "Intermediate", "Advanced"];
 
+/** Desk: one thing to do next — the recommended article. Everything else is quiet and below. */
 export default async function Desk() {
   const me = await requireMe(["student"], "/home");
   const [profile, lib] = await Promise.all([page<Profile>("/api/profile/me", "/home"), page<ArticlesResponse>("/api/articles", "/home")]);
@@ -25,77 +27,79 @@ export default async function Desk() {
 
   return (
     <div className="frame pt-10 md:pt-14">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="eyebrow">
-            Desk · <span className="mono normal-case tracking-normal">{me.code}</span>
-          </p>
-          <h1 className="mt-3 font-serif text-2xl md:text-3xl">What to read next</h1>
-        </div>
-        {profile.stats ? (
-          <dl className="flex gap-8">
-            {[
-              ["Attempts", String(profile.stats.count)],
-              ["Average", profile.stats.mean?.toFixed(1) ?? "—"],
-              ["Best", profile.stats.best?.toFixed(1) ?? "—"],
-            ].map(([k, v]) => (
-              <div key={k}>
-                <dt className="eyebrow">{k}</dt>
-                <dd className="num mt-1 font-serif text-xl">{v}</dd>
-              </div>
-            ))}
-          </dl>
-        ) : null}
-      </header>
+      <p className="eyebrow">
+        Desk · <span className="mono normal-case tracking-normal">{me.code}</span>
+      </p>
 
       {profile.researchHidden ? (
-        <div className="mt-8">
+        <div className="mt-6">
           <Notice tone="warn" title="Research mode is on">
             Your answers are recorded and scored, but scores stay hidden until your instructor turns research mode off.
           </Notice>
         </div>
       ) : null}
 
-      <div className="mt-10 grid gap-12 border-t border-ink pt-10 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:gap-16">
-        <section aria-labelledby="rec" className="animate-rise">
-          <p className="eyebrow text-signal-ink">Recommended for you</p>
-          <h2 id="rec" className="mt-3 max-w-2xl font-serif text-2xl leading-[1.1] md:text-[2.75rem]">
-            {recArticle.title}
-          </h2>
-          <p className="mt-4 max-w-xl text-md text-ink-2">{recArticle.dek}</p>
-          <p className="mt-6 max-w-xl border-l-2 border-signal pl-4 text-[0.9375rem] text-ink-2">{rec.reason}</p>
-          <dl className="mt-8 grid grid-cols-2 gap-x-10 gap-y-4 text-sm sm:flex sm:flex-wrap">
-            <div>
-              <dt className="eyebrow">Reading time</dt>
-              <dd className="num mono mt-1">{mmss(recArticle.readSeconds)}</dd>
+      <section
+        aria-labelledby="rec"
+        className="mt-6 overflow-hidden rounded-[32px] px-7 py-10 sm:px-12 sm:py-14"
+        style={{ background: "linear-gradient(150deg, #AEDFF7 0%, #DAF3F2 55%, #EEF8F8 100%)" }}
+      >
+        <p className="text-2xs font-semibold uppercase tracking-[0.16em] text-abyss/80">Recommended for you · {recArticle.topic}</p>
+        <h1 id="rec" className="display mt-4 max-w-3xl text-[clamp(2.25rem,5.5vw,4rem)] text-abyss">
+          {recArticle.title}
+        </h1>
+        <p className="mt-4 max-w-xl text-md text-abyss/85">{recArticle.dek}</p>
+        <p className="mt-6 max-w-xl text-[0.9375rem] text-abyss">
+          <span className="font-medium">Why this one · </span>
+          {rec.reason}
+        </p>
+        <dl className="mt-8 flex flex-wrap gap-x-8 gap-y-3 text-sm text-abyss">
+          {[
+            [
+              "Reading time",
+              <span key="r" className="num mono">
+                {mmss(recArticle.readSeconds)}
+              </span>,
+            ],
+            ["Length", `${recArticle.wordCount} words`],
+            ["Key ideas", recArticle.keyPointCount],
+            ["Level", LEVEL[recArticle.difficulty]],
+          ].map(([k, v]) => (
+            <div key={k as string}>
+              <dt className="text-2xs uppercase tracking-[0.14em] text-abyss/70">{k}</dt>
+              <dd className="mt-1">{v}</dd>
             </div>
-            <div>
-              <dt className="eyebrow">Length</dt>
-              <dd className="num mt-1">{recArticle.wordCount} words</dd>
-            </div>
-            <div>
-              <dt className="eyebrow">Key ideas</dt>
-              <dd className="num mt-1">{recArticle.keyPointCount}</dd>
-            </div>
-            <div>
-              <dt className="eyebrow">Difficulty</dt>
-              <dd className="mt-1">{["", "Introductory", "Intermediate", "Advanced"][recArticle.difficulty]}</dd>
-            </div>
-          </dl>
-          <div className="mt-10 flex flex-wrap items-center gap-6">
-            <ButtonLink href={`/start/${rec.articleId}`} size="lg" iconAfter="arrow">
-              Start reading
-            </ButtonLink>
-            <Link href="/library" className="link text-[0.9375rem]">
-              Browse all articles
-            </Link>
+          ))}
+        </dl>
+        <div className="mt-10 flex flex-wrap items-center gap-6">
+          <ButtonLink href={`/start/${rec.articleId}`} size="lg" iconAfter="arrow">
+            Start reading
+          </ButtonLink>
+          <Link href="/library" className="text-[0.9375rem] text-abyss underline decoration-abyss/30 underline-offset-4 hover:decoration-abyss">
+            Browse all articles
+          </Link>
+        </div>
+      </section>
+
+      <div className="mt-16 grid gap-14 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:gap-16">
+        <section aria-labelledby="recent">
+          <div className="mb-4 flex items-end justify-between gap-4">
+            <h2 id="recent" className="font-serif text-xl">
+              Recent work
+            </h2>
+            <span className="text-xs text-ink-3">Every result is a receipt you can verify.</span>
           </div>
+          <AttemptLedger attempts={profile.attempts.slice(-6)} empty="Nothing yet — your first result will appear here with its on-chain record." />
         </section>
 
-        <aside aria-labelledby="stand" className="animate-rise [animation-delay:80ms] lg:border-l lg:border-rule lg:pl-12">
-          <h2 id="stand" className="eyebrow">
-            Your fingerprint · last {recent.length || 3}
+        <aside aria-labelledby="stand">
+          <h2 id="stand" className="font-serif text-xl">
+            Your fingerprint
           </h2>
+          <p className="mt-1 text-xs text-ink-3">
+            Average of your last {recent.length || 3} attempts
+            {profile.stats ? ` · ${profile.stats.count} in all, best ${profile.stats.best?.toFixed(1) ?? "—"}` : ""}
+          </p>
           {last ? (
             <>
               <div className="mt-6 space-y-5">
@@ -106,10 +110,10 @@ export default async function Desk() {
               {prev ? (
                 <p className="mt-6 text-sm text-ink-3">
                   Latest attempt {last.finalScore >= prev.finalScore ? "up" : "down"}{" "}
-                  <span className="num mono text-ink">{Math.abs(last.finalScore - prev.finalScore).toFixed(1)}</span> since the attempt before.
+                  <span className="num mono text-ink">{Math.abs(last.finalScore - prev.finalScore).toFixed(1)}</span> since the one before.
                 </p>
               ) : null}
-              <Link href="/progress" className="link mt-6 inline-block text-sm">
+              <Link href="/progress" className="link mt-6 inline-block text-sm text-teal">
                 See progress over time
               </Link>
             </>
@@ -120,16 +124,6 @@ export default async function Desk() {
           )}
         </aside>
       </div>
-
-      <section aria-labelledby="recent" className="mt-20">
-        <div className="mb-4 flex items-end justify-between">
-          <h2 id="recent" className="font-serif text-xl">
-            Recent work
-          </h2>
-          <span className="text-xs text-ink-3">Every result is a receipt you can verify.</span>
-        </div>
-        <AttemptLedger attempts={profile.attempts.slice(-6)} empty="Nothing yet — your first result will be listed here with its on-chain record." />
-      </section>
     </div>
   );
 }

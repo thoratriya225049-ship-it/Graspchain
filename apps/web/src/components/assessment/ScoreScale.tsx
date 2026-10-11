@@ -9,10 +9,10 @@ export function ScoreScale({ score, previous }: { score: number; previous?: numb
   return (
     <div className="select-none" aria-hidden="true">
       <div className="relative h-9">
-        <div className="absolute inset-x-0 top-4 h-px bg-ink" />
+        <div className="absolute inset-x-0 top-4 h-px" style={{ background: "var(--thread-x)" }} />
         {Array.from({ length: 10 }, (_, i) => i + 1).map((t) => (
           <div key={t} className="absolute top-2.5" style={{ left: x(t) }}>
-            <div className={`-ml-px w-px ${t % 5 === 0 || t === 1 ? "h-3.5 bg-ink" : "h-2.5 bg-ink-3"}`} />
+            <div className={`-ml-px w-px ${t % 5 === 0 || t === 1 ? "h-3.5 bg-ink-2" : "h-2.5 bg-ink-3/50"}`} />
           </div>
         ))}
         {previous != null ? (
@@ -21,8 +21,8 @@ export function ScoreScale({ score, previous }: { score: number; previous?: numb
           </div>
         ) : null}
         <div className="absolute top-0 transition-[left] duration-700 ease-out" style={{ left: x(score) }}>
-          <div className="-ml-[5px] h-0 w-0 border-x-[5px] border-t-[7px] border-x-transparent border-t-signal" />
-          <div className="-ml-px mt-0 h-6 w-[2px] bg-signal" />
+          <div className="-ml-[5px] h-0 w-0 border-x-[5px] border-t-[7px] border-x-transparent border-t-teal" />
+          <div className="-ml-px mt-0 h-6 w-[2px] bg-teal" />
         </div>
       </div>
       <div className="relative mt-1 h-8 text-2xs">

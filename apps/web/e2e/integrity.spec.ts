@@ -30,10 +30,10 @@ test("copy and paste are blocked and recorded; pasting the article makes the res
     return e.defaultPrevented;
   });
   expect(copyBlocked).toBe(true);
-  await expect(page.getByText("Copying is disabled during the assessment.")).toBeVisible();
+  await expect(page.getByText("Copying is disabled during the assessment.").filter({ visible: true })).toBeVisible();
 
   await page.getByRole("button", { name: /done reading/ }).click();
-  await expect(page.getByRole("heading", { name: /What is this article about/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /What is it about/ })).toBeVisible();
 
   // Pasting the article text into the answer is blocked (the box stays empty)…
   const pasteBlocked = await page.evaluate((text) => {
@@ -45,7 +45,7 @@ test("copy and paste are blocked and recorded; pasting the article makes the res
   }, ARTICLE_SENTENCE);
   expect(pasteBlocked).toBe(true);
   await expect(page.locator("#answer")).toHaveValue("");
-  await expect(page.getByText("Pasting is disabled during the assessment.")).toBeVisible();
+  await expect(page.getByText("Pasting is disabled during the assessment.").filter({ visible: true })).toBeVisible();
 
   // …and a request for the closed article is refused and recorded by the server (after the 5 s
   // grace window, so it is weighed rather than treated as a timing race).
@@ -58,9 +58,11 @@ test("copy and paste are blocked and recorded; pasting the article makes the res
 
   // The comprehension score is still shown — but the result is not certified, with the evidence.
   await expect(page.getByLabel(/^Score \d+(\.\d)? out of 10$/)).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByText("Comprehension score · not a certified result")).toBeVisible();
-  await expect(page.getByText(/Integrity: Compromised · Not certified/)).toBeVisible();
-  const conditions = page.locator("section", { has: page.getByRole("heading", { name: "Assessment conditions" }) });
+  await expect(page.getByText("out of 10 · not certified")).toBeVisible();
+  await expect(page.getByText(/Assessment conditions: Compromised/)).toBeVisible();
+  await expect(page.getByText("This result is not certified.", { exact: false })).toBeVisible();
+  await page.getByText("Assessment conditions", { exact: true }).click();
+  const conditions = page.locator('section[aria-label="Assessment conditions"]');
   await expect(conditions).toContainText("Tried to paste text that matches the article");
   await expect(conditions).toContainText("Requested the article after it closed");
   await expect(conditions).toContainText("Tried to copy article text");

@@ -1,32 +1,35 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { DIMENSION_COPY, countsTowardProgress, createSseParser, formatDateTime, type Feedback, type FeedbackRecord, type Stage } from "@graspchain/shared";
-import { KeyIdeas, FeedbackView } from "@/components/assessment/Feedback";
-import { EvidenceTrail, IntegrityBanner, IntegrityPanel, IntegrityTag } from "@/components/assessment/Integrity";
+import { KeyIdeas } from "@/components/assessment/Feedback";
+import { EvidenceTrail, IntegrityPanel, IntegrityTag, STATUS_WORD } from "@/components/assessment/Integrity";
 import { ScoreBreakdown } from "@/components/assessment/ScoreBreakdown";
 import { ScoreScale } from "@/components/assessment/ScoreScale";
-import { Button, ButtonLink } from "@/components/ui/Button";
-import { Hash, Meter, Notice } from "@/components/ui/Bits";
+import { ChainFlowMini } from "@/components/fx/ChainFlow";
+import { JourneySteps, JourneyThread } from "@/components/fx/JourneyThread";
+import { RollingNumber } from "@/components/fx/RollingNumber";
+import { ButtonLink } from "@/components/ui/Button";
+import { Meter, Notice } from "@/components/ui/Bits";
 import { Icon } from "@/components/ui/Icon";
-import { CHAIN, Mark, Tag } from "@/components/ui/Status";
+import { Reveal } from "@/components/ui/Sheet";
+import { CHAIN } from "@/components/ui/Status";
 import { call } from "@/lib/http";
-import { verifierLink } from "@/lib/links";
 import type { Recommendation, Result, Role, ScorePayload } from "@/lib/types";
 
 const STAGES: { id: Stage; label: string }[] = [
   { id: "segmenting", label: "Splitting your answer into claims" },
-  { id: "judging", label: "Judging every key idea and claim" },
+  { id: "judging", label: "Matching every claim to the source" },
   { id: "scoring", label: "Computing the score" },
   { id: "explaining", label: "Writing feedback" },
   { id: "recording", label: "Creating your receipt" },
 ];
 const STUDENT_DIMS = ["coverage", "correctness", "reasoning", "ownWords"] as const;
 const BAND_MEANING: Record<string, string> = {
-  Surface: "Little of the article is explained, or there are clear errors.",
+  Surface: "Little of the article is explained yet, or there are clear errors.",
   Partial: "Some ideas are explained, with gaps or errors.",
-  Functional: "Mostly accurate; some ideas or links are missing.",
+  Functional: "Mostly accurate; some ideas or links between them are missing.",
   Deep: "The key ideas and how they connect are explained.",
   Expert: "Complete, precise and in your own words.",
 };
@@ -35,9 +38,6 @@ export function ResultView({
   initial,
   viewer,
   recommendation,
-  verifierUrl,
-  publicWebUrl,
-  explorerUrl,
 }: {
   initial: Result;
   viewer: Role;
@@ -51,7 +51,6 @@ export function ResultView({
   const [stage, setStage] = useState<Stage | null>(null);
   const [partial, setPartial] = useState<Partial<Feedback> | null>(null);
   const [mode, setMode] = useState<"stream" | "poll" | "idle">(initial.status === "done" || initial.status === "failed" ? "idle" : "stream");
-  const qr = useRef<HTMLDialogElement>(null);
 
   const refresh = useCallback(async () => {
     const res = await call<Result>(`/api/result/${id}`);
@@ -136,322 +135,392 @@ export function ResultView({
 
   const s = r.score;
   const evaluating = !s && !r.researchHidden && (r.status === "evaluating" || r.status === "scored");
-  const kps = s?.keyPoints ?? [];
+  const kps = useMemo(() => s?.keyPoints ?? [], [s]);
   const isOwner = viewer === "student";
-  // Integrity as it stands now (a teacher's decision applies), else as streamed with the score.
   const integrity = r.integrity ?? s?.integrity ?? null;
   const certified = countsTowardProgress(integrity?.outcome);
+  const f = (r.feedback?.feedback ?? partial ?? null) as Partial<Feedback> | null;
+  const concept = (k?: string | null) => kps.find((x) => x.id === k)?.concept ?? k ?? "";
+
+  // Understood / partial / missed, weighted by each key idea's importance.
+  const split = useMemo(() => {
+    const w = { understood: 0, partial: 0, missed: 0 };
+    const n = { understood: 0, partial: 0, missed: 0 };
+    for (const k of kps) {
+      const bucket = k.label === "correct" ? "understood" : k.label === "vague" ? "partial" : "missed";
+      w[bucket] += k.weight;
+      n[bucket] += 1;
+    }
+    const total = w.understood + w.partial + w.missed || 1;
+    return { w, n, total };
+  }, [kps]);
+
+  // The single strongest piece of evidence: a supported claim that explains how or why, with its source quote.
+  const strongest = useMemo(() => {
+    const claims = s?.evidence?.claims ?? [];
+    const pick =
+      claims.find((c) => c.classification === "UNDERSTOOD" && c.explainsHowOrWhy && c.evidence.length) ??
+      claims.find((c) => c.classification === "UNDERSTOOD" && c.evidence.length);
+    if (pick) return { claim: pick.text, quote: pick.evidence[0].quote, sentence: pick.evidence[0].sentence };
+    const u = f?.understood?.find((x) => x.evidence);
+    return u ? { claim: u.evidence!, quote: null, sentence: null, concept: concept(u.keyPointId) } : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s, f]);
 
   return (
-    <div className="frame pt-10 md:pt-14">
-      <header className="flex flex-wrap items-end justify-between gap-6">
-        <div className="min-w-0">
-          <p className="eyebrow">
-            Result · <span className="mono normal-case tracking-normal">{r.attempt.articleId}</span> · attempt {r.attempt.attemptNo} ·{" "}
-            {formatDateTime(r.attempt.createdAt)}
-            {r.attempt.seeded ? " · seeded demo" : ""}
-          </p>
-          <h1 className="mt-3 max-w-3xl font-serif text-xl leading-tight md:text-2xl">{r.attempt.articleTitle}</h1>
-        </div>
-        {viewer !== "student" ? (
-          <ButtonLink href={`/teacher/${id}`} variant="secondary" size="sm">
-            Open in review
-          </ButtonLink>
+    <>
+      <JourneyThread stage="decision" />
+      <div className="frame-narrow pt-8 md:pt-12">
+        <JourneySteps stage="decision" className="mb-8" />
+        <header className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="eyebrow">
+              <span className="mono normal-case tracking-normal">{r.attempt.articleId}</span> · attempt {r.attempt.attemptNo} ·{" "}
+              {formatDateTime(r.attempt.createdAt)}
+              {r.attempt.seeded ? " · seeded demo" : ""}
+            </p>
+            <p className="mt-2 font-serif text-lg leading-snug text-ink-2">{r.attempt.articleTitle}</p>
+          </div>
+          {viewer !== "student" ? (
+            <ButtonLink href={`/teacher/${id}`} variant="secondary" size="sm">
+              Open in review
+            </ButtonLink>
+          ) : null}
+        </header>
+
+        {r.status === "delayed" || r.status === "failed" ? (
+          <div className="mt-8">
+            <Notice tone={r.status === "failed" ? "bad" : "warn"} title={r.status === "failed" ? "Evaluation failed" : "Evaluation delayed"}>
+              {r.error?.message ?? "Your answer is saved."} {r.status === "delayed" ? "This page checks again by itself." : ""}
+            </Notice>
+          </div>
         ) : null}
-      </header>
 
-      {r.status === "delayed" || r.status === "failed" ? (
-        <div className="mt-8">
-          <Notice tone={r.status === "failed" ? "bad" : "warn"} title={r.status === "failed" ? "Evaluation failed" : "Evaluation delayed"}>
-            {r.error?.message ?? "Your answer is saved."} {r.status === "delayed" ? "This page checks again every few seconds." : ""}
-          </Notice>
-        </div>
-      ) : null}
+        {r.researchHidden ? (
+          <section className="panel mt-10 px-8 py-10">
+            <p className="display text-3xl">Thanks — your answer is recorded.</p>
+            <p className="mt-3 max-w-xl text-ink-2">
+              Research mode is on, so scores and feedback are hidden for now. Your receipt is still created and committed.
+            </p>
+          </section>
+        ) : null}
 
-      {r.researchHidden ? (
-        <section className="mt-10 border-t border-ink pt-10">
-          <p className="font-serif text-2xl">Thanks — your answer is recorded.</p>
-          <p className="mt-3 max-w-xl text-ink-2">
-            Research mode is on, so scores and feedback are hidden for now. Your receipt is still created and committed.
-          </p>
-        </section>
-      ) : null}
+        {evaluating ? <Progress stage={stage} mode={mode} /> : null}
 
-      {evaluating ? <Progress stage={stage} mode={mode} /> : null}
-
-      {s ? <IntegrityBanner integrity={integrity} /> : null}
-
-      {s ? (
-        <div className="mt-10 grid gap-14 border-t border-ink pt-10 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.25fr)] lg:gap-20">
-          {/* ── The number, and how it was made ── */}
-          <section aria-labelledby="score" className="animate-rise">
-            <h2 id="score" className="sr-only">
-              Score
-            </h2>
-            <p className="eyebrow mb-3">Comprehension score{certified ? "" : " · not a certified result"}</p>
-            <div className="flex items-end gap-5">
-              <p
-                className={`num font-serif text-[6.5rem] font-medium leading-[0.8] tracking-[-0.05em] md:text-numeral ${certified ? "" : "text-ink-3"}`}
-                aria-label={`Score ${s.finalScore.toFixed(1)} out of 10`}
+        {s ? (
+          <>
+            {/* ── Your result ── */}
+            <section aria-labelledby="score-h" className="mt-8">
+              <h1 id="score-h" className="eyebrow">
+                Your result
+              </h1>
+              <div
+                className="mt-4 overflow-hidden rounded-[32px] px-7 pb-7 pt-8 sm:px-10 sm:pt-10"
+                style={{ background: "linear-gradient(160deg, #AEDFF7 0%, #DAF3F2 58%, #EEF8F8 100%)" }}
               >
-                {s.finalScore.toFixed(1)}
-              </p>
-              <div className="pb-2">
-                <p className="eyebrow text-ink">{s.band}</p>
-                <p className="mt-1 text-xs text-ink-3">out of 10</p>
-              </div>
-            </div>
-            <p className="mt-5 max-w-sm text-[0.9375rem] text-ink-2">{BAND_MEANING[s.band]}</p>
-            <div className="mt-8">
-              <ScoreScale score={s.finalScore} previous={r.delta ? s.finalScore - r.delta.finalScore : null} />
-            </div>
-            {r.delta ? (
-              <p className="mt-4 text-sm">
-                <span className={`num mono font-medium ${r.delta.finalScore >= 0 ? "text-ok" : "text-bad"}`}>
-                  {r.delta.finalScore >= 0 ? "+" : "−"}
-                  {Math.abs(r.delta.finalScore).toFixed(1)}
-                </span>{" "}
-                <span className="text-ink-3">since your previous attempt at this article</span>
-                {STUDENT_DIMS.filter((d) => Math.abs(r.delta!.dimensions[d] ?? 0) >= 0.05).map((d) => (
-                  <span key={d} className="ml-3 text-ink-3">
-                    {DIMENSION_COPY[d].label.toLowerCase()}{" "}
-                    <span className="num mono">{(r.delta!.dimensions[d] >= 0 ? "+" : "−") + Math.abs(Math.round(r.delta!.dimensions[d] * 100))}</span>
-                  </span>
-                ))}
-              </p>
-            ) : null}
-
-            {r.review ? (
-              <div className="mt-6">
-                <Notice tone="signal" title={`Corrected by a teacher: ${r.review.previousScore.toFixed(1)} → ${r.review.newScore.toFixed(1)}`}>
-                  “{r.review.reason}” The original record still verifies; the correction is a new, linked record.
-                </Notice>
-              </div>
-            ) : null}
-
-            <div className="mt-6 flex flex-wrap gap-2">
-              {s.lowConfidence ? (
-                <Tag tone="warn" icon="vague">
-                  Flagged for teacher review
-                </Tag>
-              ) : null}
-              {s.flags.injectionSuspected ? (
-                <Tag tone="bad" icon="alert">
-                  Contains instructions to the grader
-                </Tag>
-              ) : null}
-              {s.flags.gibberishSuspected ? (
-                <Tag tone="bad" icon="alert">
-                  Looks like keyword stuffing
-                </Tag>
-              ) : null}
-              <IntegrityTag integrity={integrity} />
-            </div>
-
-            <div className="mt-10">
-              <h3 className="eyebrow mb-4">How this number was made</h3>
-              <ScoreBreakdown score={s} />
-            </div>
-
-            <dl className="mt-10 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-rule pt-5 text-xs">
-              <div>
-                <dt className="eyebrow">Judge</dt>
-                <dd className="mono mt-1">{s.judge.model}</dd>
-                {s.judge.kind === "local" ? <dd className="mt-0.5 text-warn">Local demo stand-in, not Jev</dd> : null}
-                {s.judge.kind === "evidence" ? <dd className="mt-0.5 text-ink-3">The LLM extracts evidence; published rules decide</dd> : null}
-              </div>
-              <div>
-                <dt className="eyebrow">Claims</dt>
-                <dd className="mt-1">{s.segmentation === "llm" ? "Split by the LLM, verified as your exact words" : "Split by sentence (no LLM)"}</dd>
-              </div>
-              <div>
-                <dt className="eyebrow">Fair entry</dt>
-                <dd className="mt-1">
-                  {r.fairness.admissionMode === "fair" ? "Shuffled window" : "Arrival order"}
-                  {r.fairness.windowId ? <span className="mono block text-ink-3">{r.fairness.windowId}</span> : null}
-                </dd>
-              </div>
-              <div>
-                <dt className="eyebrow">Fair clock</dt>
-                <dd className="mt-1">
-                  {r.fairness.readSecondsGranted} s granted
-                  <span className="block text-ink-3">
-                    {r.fairness.clockMode === "fair" ? `+${(r.fairness.latencyCompMs / 1000).toFixed(1)} s delivery delay added` : "server clock only"}
-                  </span>
-                </dd>
-              </div>
-              <div>
-                <dt className="eyebrow">Time to score</dt>
-                <dd className="num mono mt-1">{s.tScoreMs < 1000 ? `${s.tScoreMs} ms` : `${(s.tScoreMs / 1000).toFixed(2)} s`}</dd>
-              </div>
-            </dl>
-          </section>
-
-          {/* ── What it means ── */}
-          <section aria-labelledby="meaning" className="animate-rise [animation-delay:80ms]">
-            <h2 id="meaning" className="sr-only">
-              Breakdown and feedback
-            </h2>
-            <div className="grid gap-10 md:grid-cols-2">
-              <div>
-                <h3 className="eyebrow mb-4">Four dimensions</h3>
-                <div className="space-y-5">
-                  {STUDENT_DIMS.map((d) => (
-                    <Meter
-                      key={d}
-                      label={DIMENSION_COPY[d].label}
-                      value={s.dimensions[d]}
-                      hint={DIMENSION_COPY[d].definition}
-                      tone={recommendation?.weakest === d ? "signal" : "ink"}
-                    />
-                  ))}
+                <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
+                  <RollingNumber
+                    value={s.finalScore}
+                    label={`Score ${s.finalScore.toFixed(1)} out of 10`}
+                    className={`display text-[clamp(6.5rem,24vw,10rem)] leading-[0.82] tracking-[-0.055em] ${certified ? "text-abyss" : "text-abyss/55"}`}
+                  />
+                  <div className="pb-3">
+                    <p className="font-serif text-2xl text-abyss">{s.band}</p>
+                    <p className="text-sm text-abyss/80">out of 10{certified ? "" : " · not certified"}</p>
+                  </div>
                 </div>
-              </div>
-              <div>
-                <h3 className="eyebrow mb-4">Key ideas</h3>
-                <KeyIdeas keyPoints={kps} />
-                {r.xrayReady ? (
-                  <ButtonLink href={`/attempts/${id}/xray`} className="mt-6 w-full" iconAfter="arrow">
-                    See it on the article
-                  </ButtonLink>
-                ) : (
-                  <p className="mt-6 text-sm text-ink-3">The X-Ray opens when feedback is complete.</p>
-                )}
-              </div>
-            </div>
-            <div className="mt-14 border-t border-ink pt-8">
-              <h3 className="eyebrow mb-5">Feedback</h3>
-              <FeedbackView record={r.feedback} partial={partial} keyPoints={kps} />
-            </div>
-          </section>
-        </div>
-      ) : null}
-
-      {s ? <IntegrityPanel integrity={integrity} events={r.integrityEvents ?? []} /> : null}
-      {s ? <EvidenceTrail evidence={s.evidence} /> : null}
-
-      {/* ── The receipt ── */}
-      {r.record ? (
-        <section aria-labelledby="receipt" className="mt-20 border border-ink bg-paper-raised shadow-doc">
-          <div className="grid gap-8 p-6 md:grid-cols-[minmax(0,1fr)_auto] md:p-8">
-            <div className="min-w-0">
-              <h2 id="receipt" className="eyebrow text-ink">
-                Receipt
-              </h2>
-              <p className="mt-3 font-serif text-lg">
-                {r.record.chainStatus === "mined"
-                  ? "Committed on-chain. Anyone can check it without trusting Graspchain."
-                  : "Receipt created. Its hash is being committed on-chain."}
-              </p>
-              <div className="mt-4">
-                <Mark spec={CHAIN[r.record.chainStatus] ?? CHAIN.queued} />
-              </div>
-              <dl className="mt-5 grid gap-3 text-sm">
-                <div className="grid gap-1 md:grid-cols-[9rem_minmax(0,1fr)]">
-                  <dt className="text-ink-3">Assessment id</dt>
-                  <dd>
-                    <Hash value={r.record.assessmentId} label="assessment id" />
-                  </dd>
-                </div>
-                <div className="grid gap-1 md:grid-cols-[9rem_minmax(0,1fr)]">
-                  <dt className="text-ink-3">Record hash</dt>
-                  <dd>
-                    <Hash value={r.record.recordHash} label="record hash" />
-                  </dd>
-                </div>
-                {r.record.ethTx ? (
-                  <div className="grid gap-1 md:grid-cols-[9rem_minmax(0,1fr)]">
-                    <dt className="text-ink-3">Transaction</dt>
-                    <dd className="flex flex-wrap items-center gap-2">
-                      <Hash value={r.record.ethTx} short label="transaction hash" />
-                      {r.record.blockNumber ? <span className="text-ink-3">block {r.record.blockNumber}</span> : null}
-                      {explorerUrl ? (
-                        <a href={`${explorerUrl}/tx/${r.record.ethTx}`} target="_blank" rel="noreferrer" className="link inline-flex items-center gap-1">
-                          Explorer <Icon name="external" size={12} />
-                        </a>
-                      ) : null}
-                    </dd>
+                {kps.length ? (
+                  <div className="mt-8">
+                    <div className="flex h-2.5 overflow-hidden rounded-full bg-white/60" aria-hidden>
+                      <div className="bg-ok-mark" style={{ width: `${(split.w.understood / split.total) * 100}%` }} />
+                      <div className="bg-warn-mark" style={{ width: `${(split.w.partial / split.total) * 100}%` }} />
+                      <div className="bg-bad-mark" style={{ width: `${(split.w.missed / split.total) * 100}%` }} />
+                    </div>
+                    <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-abyss">
+                      <li className="flex items-center gap-1.5">
+                        <Icon name="check" size={14} className="text-ok" /> {split.n.understood} understood
+                      </li>
+                      <li className="flex items-center gap-1.5">
+                        <Icon name="vague" size={14} className="text-warn" /> {split.n.partial} partly
+                      </li>
+                      <li className="flex items-center gap-1.5">
+                        <Icon name="missed" size={14} className="text-bad" /> {split.n.missed} missed or misread
+                      </li>
+                    </ul>
                   </div>
                 ) : null}
-              </dl>
-            </div>
-            <div className="flex flex-col gap-3 md:w-56">
-              <ButtonLink href={`/verify/${r.record.assessmentId}`} variant="primary">
-                Verify this record
-              </ButtonLink>
-              {isOwner ? (
-                <a
-                  href={`/api/result/${id}/receipt`}
-                  download
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-sm border border-ink/80 text-[0.9375rem] font-medium hover:bg-ink hover:text-paper"
-                >
-                  <Icon name="download" /> Download receipt
-                </a>
-              ) : null}
-              <Button variant="secondary" onClick={() => qr.current?.showModal()}>
-                Show QR code
-              </Button>
-            </div>
-          </div>
-          {r.lineage.length > 1 ? (
-            <div className="border-t border-rule px-6 py-4 text-sm md:px-8">
-              <span className="eyebrow mr-3">Versions</span>
-              {r.lineage.map((l, i) => (
-                <span key={l.assessmentId}>
-                  {i ? <span className="mx-2 text-ink-3">→</span> : null}
-                  <Link href={`/verify/${l.assessmentId}`} className="mono link">
-                    {l.assessmentId.slice(0, 8)}
-                  </Link>{" "}
-                  <span className="num text-ink-3">{l.finalScore?.toFixed(1) ?? ""}</span>
-                </span>
-              ))}
-            </div>
-          ) : null}
-          <dialog ref={qr} className="m-auto w-[min(92vw,22rem)] border border-ink bg-paper-raised p-6 text-ink backdrop:bg-ink/40" aria-labelledby="qr-title">
-            <h3 id="qr-title" className="eyebrow text-ink">
-              Scan to verify independently
-            </h3>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={`/qr/${r.record.assessmentId}`}
-              alt="QR code linking to the independent verifier for this receipt"
-              width={256}
-              height={256}
-              className="mx-auto mt-4 h-64 w-64"
-            />
-            <p className="mt-4 text-xs text-ink-3">
-              Opens the static verifier, which recomputes the hash in the browser and asks the chain directly — no request to Graspchain&rsquo;s API is needed
-              to check it.
-            </p>
-            <div className="mt-5 flex items-center justify-between">
-              <a href={verifierLink(verifierUrl, publicWebUrl, r.record.assessmentId)} target="_blank" rel="noreferrer" className="link text-sm">
-                Open verifier
-              </a>
-              <form method="dialog">
-                <Button size="sm" variant="secondary">
-                  Close
-                </Button>
-              </form>
-            </div>
-          </dialog>
-        </section>
-      ) : null}
+              </div>
 
-      {isOwner && (r.status === "done" || r.researchHidden) ? (
-        <nav aria-label="Next" className="mt-12 flex flex-wrap items-center gap-x-8 gap-y-4 border-t border-rule pt-6">
-          <ButtonLink href={`/start/${r.attempt.articleId}`} variant="secondary">
-            Retry this article
-          </ButtonLink>
-          {recommendation && recommendation.articleId !== r.attempt.articleId ? (
-            <Link href={`/start/${recommendation.articleId}`} className="text-[0.9375rem]">
-              Next: <span className="font-serif">{recommendation.title}</span> <span aria-hidden>→</span>
+              {!certified && integrity ? (
+                <div className="mt-4">
+                  <Notice tone={integrity.outcome === "NOT_CERTIFIED" ? "bad" : "warn"} title={`Assessment conditions: ${STATUS_WORD[integrity.status]}`}>
+                    {integrity.outcome === "NOT_CERTIFIED" ? "This result is not certified." : "A teacher reviews this result before it counts."} The
+                    comprehension score itself is unchanged.
+                    {integrity.review ? ` A teacher ${integrity.review.decision === "CLEARED" ? "cleared" : "upheld"} it: “${integrity.review.reason}”` : ""}
+                  </Notice>
+                </div>
+              ) : null}
+              {r.review ? (
+                <div className="mt-4">
+                  <Notice tone="signal" title={`Corrected by a teacher: ${r.review.previousScore.toFixed(1)} → ${r.review.newScore.toFixed(1)}`}>
+                    “{r.review.reason}” The original record still verifies; the correction is a new, linked record.
+                  </Notice>
+                </div>
+              ) : null}
+              {s.flags.injectionSuspected || s.flags.gibberishSuspected ? (
+                <div className="mt-4">
+                  <Notice tone="bad" title={s.flags.injectionSuspected ? "Contains instructions to the grader" : "Looks like keyword stuffing"}>
+                    {s.flags.injectionSuspected
+                      ? "Text addressed to the grader earns nothing and sends the answer to a teacher."
+                      : "The answer reads like a list of terms rather than an explanation."}
+                  </Notice>
+                </div>
+              ) : null}
+              {s.lowConfidence ? (
+                <div className="mt-4">
+                  <Notice tone="warn" title="A teacher will look at this one">
+                    Part of the judgement stayed uncertain, so it is in the review queue.
+                  </Notice>
+                </div>
+              ) : null}
+              {r.delta ? (
+                <p className="mt-4 text-sm text-ink-3">
+                  <span className={`num mono font-medium ${r.delta.finalScore >= 0 ? "text-ok" : "text-bad"}`}>
+                    {r.delta.finalScore >= 0 ? "+" : "−"}
+                    {Math.abs(r.delta.finalScore).toFixed(1)}
+                  </span>{" "}
+                  since your previous attempt at this article
+                </p>
+              ) : null}
+
+              <ChainFlowMini
+                className="mt-6"
+                current="decision"
+                items={[
+                  { key: "source", value: <span className="mono">{r.attempt.articleId}</span> },
+                  { key: "claim", value: s.claimSummary.count },
+                  { key: "evidence", value: `${s.claimSummary.supported} supported` },
+                  { key: "decision", value: s.band },
+                  { key: "proof", value: r.record ? (CHAIN[r.record.chainStatus] ?? CHAIN.queued).word : "…" },
+                ]}
+              />
+            </section>
+
+            {/* ── What it means ── */}
+            <section aria-label="Explanation" className="mt-12">
+              <p className="display text-[clamp(1.5rem,3.2vw,2.125rem)] leading-[1.18] tracking-[-0.02em]">{f?.oneLineSummary ?? BAND_MEANING[s.band]}</p>
+              {!r.feedback && !partial ? <p className="mt-2 text-sm text-ink-3">Feedback is being written…</p> : null}
+            </section>
+
+            <div className="mt-12 space-y-12">
+              <Block title="What you understood">
+                {f?.understood?.length ? (
+                  <ul className="space-y-5">
+                    {f.understood.map((u, i) => (
+                      <li key={i}>
+                        <p className="flex items-center gap-2 font-medium text-ink">
+                          <Icon name="check" size={15} className="text-ok" />
+                          {concept(u.keyPointId)}
+                        </p>
+                        {u.evidence ? (
+                          <p className="mt-2 font-serif text-[1.0625rem] italic leading-relaxed text-ink-2">
+                            <span className="voice-student">“{u.evidence}”</span>
+                          </p>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <KeyIdeas keyPoints={kps.filter((k) => k.label === "correct")} />
+                )}
+              </Block>
+
+              {f?.misunderstood?.length || f?.missed?.length ? (
+                <Block title="What you missed or misread">
+                  <ul className="space-y-6">
+                    {f.misunderstood?.map((m, i) => (
+                      <li key={`m${i}`} className="rounded-[18px] bg-bad-wash/60 p-5">
+                        <p className="font-serif text-[1.0625rem] italic text-ink">
+                          <span className="voice-student">“{m.studentQuote}”</span>
+                        </p>
+                        <p className="mt-3 text-sm text-ink-2">
+                          <span className="font-semibold text-bad">Why it&rsquo;s off · </span>
+                          {m.why}
+                        </p>
+                        <p className="mt-1.5 text-sm text-ink-2">
+                          <span className="font-semibold text-ok">The source says · </span>
+                          {m.correctVersion}
+                        </p>
+                      </li>
+                    ))}
+                    {f.missed?.map((m, i) => (
+                      <li key={`x${i}`}>
+                        <p className="flex items-center gap-2 font-medium text-ink">
+                          <Icon name="missed" size={15} className="text-bad" />
+                          {concept(m.keyPointId)}
+                        </p>
+                        <p className="mt-1.5 text-[0.9375rem] text-ink-2">{m.whatToAdd}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </Block>
+              ) : null}
+
+              {strongest ? (
+                <Block title="Your strongest evidence">
+                  <figure className="grid gap-3 sm:grid-cols-2">
+                    <blockquote className="rounded-[18px] bg-lavender/15 p-5">
+                      <p className="text-2xs font-semibold uppercase tracking-[0.14em] text-ink-3">You wrote</p>
+                      <p className="mt-2 font-serif text-[1.0625rem] leading-relaxed text-ink">“{strongest.claim}”</p>
+                    </blockquote>
+                    {strongest.quote ? (
+                      <blockquote className="rounded-[18px] bg-aqua/15 p-5">
+                        <p className="text-2xs font-semibold uppercase tracking-[0.14em] text-ink-3">The source · sentence {(strongest.sentence ?? 0) + 1}</p>
+                        <p className="mt-2 font-serif text-[1.0625rem] leading-relaxed text-ink">“{strongest.quote}”</p>
+                      </blockquote>
+                    ) : null}
+                  </figure>
+                </Block>
+              ) : null}
+
+              {f?.couldBeBetter?.length || f?.nextStep ? (
+                <Block title="What to improve">
+                  <ol className="space-y-4">
+                    {f.couldBeBetter?.map((c, i) => (
+                      <li key={i} className="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-2">
+                        <span className="mono text-sm text-ink-3">{i + 1}.</span>
+                        <div>
+                          <p className="text-[0.9375rem]">{c.action}</p>
+                          {c.exampleSentence ? <p className="mt-1 text-sm italic text-ink-3">e.g. “{c.exampleSentence}”</p> : null}
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                  {f.nextStep ? <p className="mt-5 rounded-[14px] bg-mint px-4 py-3 text-[0.9375rem] text-ink">{f.nextStep}</p> : null}
+                </Block>
+              ) : null}
+            </div>
+
+            <div className="mt-12 flex flex-wrap items-center gap-x-6 gap-y-4">
+              {r.xrayReady ? (
+                <ButtonLink href={`/attempts/${id}/xray`} size="lg" iconAfter="arrow">
+                  Open X-Ray
+                </ButtonLink>
+              ) : (
+                <span className="inline-flex h-13 items-center rounded-[16px] bg-paper-sunk px-6 text-sm text-ink-3">
+                  The X-Ray opens when feedback is complete
+                </span>
+              )}
+              {r.record ? (
+                <ButtonLink href={`/attempts/${id}/proof`} variant="secondary" size="lg">
+                  View proof
+                </ButtonLink>
+              ) : null}
+            </div>
+            {r.feedback ? (
+              <p className="mt-4 text-xs text-ink-3">
+                {r.feedback.source === "llm"
+                  ? `Feedback written by ${r.feedback.model}, then checked: every quote is your exact words and agrees with the judge${r.feedback.dropped ? ` (${r.feedback.dropped} unsupported item${r.feedback.dropped > 1 ? "s" : ""} removed)` : ""}.`
+                  : `Feedback (basic) · ${r.feedback.fallbackReason ?? "Built from the judge's results."}`}
+              </p>
+            ) : null}
+
+            {/* ── One interaction away ── */}
+            <div className="mt-16">
+              <Reveal summary="How this score was made" meta="formula, dimensions, fairness">
+                <ScoreScale score={s.finalScore} previous={r.delta ? s.finalScore - r.delta.finalScore : null} />
+                <div className="mt-8 grid gap-10 md:grid-cols-2">
+                  <ScoreBreakdown score={s} />
+                  <div className="space-y-5">
+                    {STUDENT_DIMS.map((d) => (
+                      <Meter
+                        key={d}
+                        label={DIMENSION_COPY[d].label}
+                        value={s.dimensions[d]}
+                        hint={DIMENSION_COPY[d].definition}
+                        tone={recommendation?.weakest === d ? "signal" : "ink"}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="mt-6 flex flex-wrap gap-2">
+                  <IntegrityTag integrity={integrity} />
+                </div>
+                <dl className="mt-8 grid grid-cols-2 gap-x-6 gap-y-4 text-xs sm:grid-cols-3">
+                  <Fact
+                    k="Judge"
+                    v={<span className="mono">{s.judge.model}</span>}
+                    sub={
+                      s.judge.kind === "local"
+                        ? "Local demo stand-in, not Jev"
+                        : s.judge.kind === "evidence"
+                          ? "The LLM extracts evidence; published rules decide"
+                          : undefined
+                    }
+                  />
+                  <Fact k="Claims" v={s.segmentation === "llm" ? "Split by the LLM, verified as your exact words" : "Split by sentence (no LLM)"} />
+                  <Fact k="Fair entry" v={r.fairness.admissionMode === "fair" ? "Shuffled window" : "Arrival order"} sub={r.fairness.windowId ?? undefined} />
+                  <Fact
+                    k="Fair clock"
+                    v={`${r.fairness.readSecondsGranted} s granted`}
+                    sub={r.fairness.clockMode === "fair" ? `+${(r.fairness.latencyCompMs / 1000).toFixed(1)} s delivery delay added` : "server clock only"}
+                  />
+                  <Fact
+                    k="Time to score"
+                    v={<span className="num mono">{s.tScoreMs < 1000 ? `${s.tScoreMs} ms` : `${(s.tScoreMs / 1000).toFixed(2)} s`}</span>}
+                  />
+                </dl>
+              </Reveal>
+              {integrity ? (
+                <Reveal summary="Assessment conditions" meta={STATUS_WORD[integrity.status]}>
+                  <IntegrityPanel integrity={integrity} events={r.integrityEvents ?? []} embedded />
+                </Reveal>
+              ) : null}
+              {s.evidence ? (
+                <Reveal summary="Evidence trail" meta={`${s.evidence.claims.length} claims`}>
+                  <EvidenceTrail evidence={s.evidence} embedded />
+                </Reveal>
+              ) : null}
+              <div className="border-t border-rule" />
+            </div>
+          </>
+        ) : null}
+
+        {isOwner && (r.status === "done" || r.researchHidden) ? (
+          <nav aria-label="Next" className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-3 text-[0.9375rem]">
+            <Link href={`/start/${r.attempt.articleId}`} className="link text-ink">
+              Retry this article
             </Link>
-          ) : null}
-          <Link href="/progress" className="link text-[0.9375rem] text-ink-3">
-            Your progress
-          </Link>
-        </nav>
-      ) : null}
+            {recommendation && recommendation.articleId !== r.attempt.articleId ? (
+              <Link href={`/start/${recommendation.articleId}`} className="link text-ink">
+                Next: <span className="font-serif">{recommendation.title}</span>
+              </Link>
+            ) : null}
+            <Link href="/progress" className="link text-ink-3">
+              Your progress
+            </Link>
+          </nav>
+        ) : null}
+      </div>
+    </>
+  );
+}
+
+function Block({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section>
+      <h2 className="mb-5 text-2xs font-semibold uppercase tracking-[0.14em] text-ink-3">{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+function Fact({ k, v, sub }: { k: string; v: React.ReactNode; sub?: string }) {
+  return (
+    <div>
+      <dt className="eyebrow">{k}</dt>
+      <dd className="mt-1 text-sm text-ink">{v}</dd>
+      {sub ? <dd className="mt-0.5 text-ink-3">{sub}</dd> : null}
     </div>
   );
 }
@@ -459,19 +528,19 @@ export function ResultView({
 function Progress({ stage, mode }: { stage: Stage | null; mode: string }) {
   const idx = stage ? STAGES.findIndex((s) => s.id === stage) : 0;
   return (
-    <section aria-live="polite" aria-busy="true" className="mt-10 border-t border-ink pt-10">
-      <p className="font-serif text-2xl">Assessing your explanation…</p>
-      <ol className="mt-8 max-w-lg">
+    <section aria-live="polite" aria-busy="true" className="mt-10">
+      <p className="display text-[clamp(2rem,4vw,2.75rem)]">Reading your explanation…</p>
+      <ol className="mt-8 max-w-lg space-y-1">
         {STAGES.map((s, i) => (
           <li
             key={s.id}
-            className={`flex items-center gap-3 border-b border-rule py-3 text-[0.9375rem] ${i < idx ? "text-ink-3" : i === idx ? "text-ink" : "text-ink-3/60"}`}
+            className={`flex items-center gap-3 rounded-[12px] px-3 py-2.5 text-[0.9375rem] transition-colors duration-300 ${i === idx ? "bg-mint text-ink" : i < idx ? "text-ink-3" : "text-ink-3/60"}`}
           >
-            <span className={`flex h-4 w-4 items-center justify-center ${i < idx ? "text-ok" : ""}`}>
+            <span className={`flex h-5 w-5 items-center justify-center rounded-full ${i < idx ? "bg-ok-wash text-ok" : ""}`}>
               {i < idx ? (
-                <Icon name="check" size={14} />
+                <Icon name="check" size={12} />
               ) : i === idx ? (
-                <span className="h-2 w-2 animate-[ticker_1s_ease-in-out_infinite] rounded-full bg-signal" />
+                <span className="h-2 w-2 rounded-full bg-teal" style={{ animation: "ticker 1.2s var(--ease-in-out) infinite" }} />
               ) : (
                 <span className="h-1.5 w-1.5 rounded-full bg-rule-strong" />
               )}
@@ -480,7 +549,9 @@ function Progress({ stage, mode }: { stage: Stage | null; mode: string }) {
           </li>
         ))}
       </ol>
-      {mode === "poll" ? <p className="mt-4 text-xs text-ink-3">Live updates unavailable on this connection — checking every second instead.</p> : null}
+      {mode === "poll" ? (
+        <p className="mt-4 text-xs text-ink-3">Live updates aren&rsquo;t available on this connection — checking every second instead.</p>
+      ) : null}
     </section>
   );
 }

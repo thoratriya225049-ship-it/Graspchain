@@ -2,11 +2,11 @@ import { DIMENSION_COPY } from "@graspchain/shared";
 import type { ScorePayload } from "@/lib/types";
 
 const SHADE: Record<string, string> = {
-  coverage: "bg-ink",
-  correctness: "bg-ink-2",
-  accuracy: "bg-ink-3",
-  reasoning: "bg-rule-strong",
-  ownWords: "bg-paper-deep",
+  coverage: "bg-abyss",
+  correctness: "bg-teal",
+  accuracy: "bg-aqua",
+  reasoning: "bg-sky",
+  ownWords: "bg-peri",
 };
 
 /**
@@ -19,14 +19,16 @@ export function ScoreBreakdown({ score }: { score: ScorePayload }) {
   let acc = 0;
   return (
     <div>
-      <div className="relative h-5 border border-ink bg-paper-raised" aria-hidden>
+      <div className="relative h-4 overflow-hidden rounded-full bg-mint" aria-hidden>
         {score.contributions.map((c) => {
           const left = acc;
           acc += c.points;
-          return <div key={c.key} className={`absolute inset-y-0 ${SHADE[c.key]} border-r border-paper`} style={{ left: x(left), width: x(c.points) }} />;
+          return (
+            <div key={c.key} className={`absolute inset-y-0 ${SHADE[c.key]} border-r-2 border-paper-raised`} style={{ left: x(left), width: x(c.points) }} />
+          );
         })}
         {raw - 1 > score.finalScore - 1 + 0.01 ? (
-          <div className="absolute inset-y-0 border-l-2 border-signal" style={{ left: x(score.finalScore - 1) }} title="Final score after adjustments" />
+          <div className="absolute inset-y-0 border-l-2 border-bad-mark" style={{ left: x(score.finalScore - 1) }} title="Final score after adjustments" />
         ) : null}
       </div>
       <div className="mt-1 flex justify-between text-2xs text-ink-3">
@@ -44,7 +46,7 @@ export function ScoreBreakdown({ score }: { score: ScorePayload }) {
           {score.contributions.map((c) => (
             <tr key={c.key} className="border-b border-rule">
               <td className="py-2">
-                <span className={`mr-2 inline-block h-2.5 w-2.5 border border-ink/40 align-[-1px] ${SHADE[c.key]}`} aria-hidden />
+                <span className={`mr-2 inline-block h-2.5 w-2.5 border border-ink/40 align-[-1px] rounded-full ${SHADE[c.key]}`} aria-hidden />
                 {DIMENSION_COPY[c.key].label}
               </td>
               <td className="num mono py-2 text-right text-ink-3">
@@ -54,7 +56,7 @@ export function ScoreBreakdown({ score }: { score: ScorePayload }) {
             </tr>
           ))}
           {score.adjustments.map((a) => (
-            <tr key={a} className="border-b border-rule text-signal-ink">
+            <tr key={a} className="border-b border-rule text-warn">
               <td className="py-2" colSpan={2}>
                 {a}
               </td>

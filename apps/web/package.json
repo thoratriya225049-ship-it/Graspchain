@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Graspchain web app (Next.js App Router): student, teacher, research and admin screens S1\u2013S12.",
+  "description": "Graspchain web app (Next.js App Router): student, teacher, research and admin screens S1–S12.",
   "scripts": {
     "dev": "next dev --port 3000",
     "build": "next build",
@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@graspchain/shared": "workspace:*",
+    "motion": "13.4.3",
     "next": "16.4.0",
     "qrcode": "1.5.4",
     "react": "19.3.0",

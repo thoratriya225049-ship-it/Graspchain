@@ -30,7 +30,7 @@ export async function takeAssessment(page: Page, articleId: string, answer: stri
   await expect(page.locator("article .prose-article p").first()).toBeVisible();
   await opts.onReading?.();
   await page.getByRole("button", { name: /done reading/ }).click();
-  await expect(page.getByRole("heading", { name: /What is this article about/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /What is it about/ })).toBeVisible();
   await page.fill("#answer", answer);
   await page.getByRole("button", { name: "Submit for assessment" }).click();
   await page.waitForURL(/\/attempts\/[0-9a-f-]{36}$/);

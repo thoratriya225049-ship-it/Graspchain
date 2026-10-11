@@ -1,19 +1,20 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Mono, Instrument_Sans, Newsreader } from "next/font/google";
+import { Fraunces, Geist, Geist_Mono } from "next/font/google";
+import { MotionRoot } from "@/components/fx/MotionRoot";
 import "./globals.css";
 
-const serif = Newsreader({ subsets: ["latin"], variable: "--font-newsreader", axes: ["opsz"], style: ["normal", "italic"], display: "swap" });
-const sans = Instrument_Sans({ subsets: ["latin"], variable: "--font-instrument", display: "swap" });
-const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-plex-mono", display: "swap" });
+const serif = Fraunces({ subsets: ["latin"], variable: "--font-fraunces", axes: ["opsz", "SOFT"], style: ["normal", "italic"], display: "swap" });
+const sans = Geist({ subsets: ["latin"], variable: "--font-geist", display: "swap" });
+const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono", display: "swap" });
 
 export const metadata: Metadata = {
   title: { default: "Graspchain — proof of comprehension", template: "%s · Graspchain" },
   description:
-    "Read a short article, explain it in your own words, and get a typed, explainable score with feedback — committed on-chain as a receipt anyone can verify.",
+    "Read a short article, explain it in your own words, and get an evidence-based score with feedback — sealed on-chain as a receipt anyone can verify.",
   icons: { icon: "/favicon.svg" },
 };
 
-export const viewport: Viewport = { themeColor: "#f3f0e8", width: "device-width", initialScale: 1 };
+export const viewport: Viewport = { themeColor: "#f7fcfc", width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -21,11 +22,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <a
           href="#main"
-          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:bg-ink focus:px-3 focus:py-2 focus:text-paper"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-sm focus:bg-abyss focus:px-3 focus:py-2 focus:text-on-dark"
         >
           Skip to content
         </a>
-        {children}
+        <MotionRoot>{children}</MotionRoot>
       </body>
     </html>
   );

@@ -22,8 +22,8 @@ test.describe("tamper demo (E6)", () => {
     test.skip(!a, "needs a mined attempt (run the journey spec first)");
 
     // The student downloads their receipt.
-    await page.goto(`/attempts/${a.attemptId}`);
-    const [download] = await Promise.all([page.waitForEvent("download"), page.getByText("Download receipt").click()]);
+    await page.goto(`/attempts/${a.attemptId}/proof`);
+    const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("link", { name: "Download" }).click()]);
     const file = path.join(test.info().outputDir, "receipt.json");
     await download.saveAs(file);
     const receipt = JSON.parse(fs.readFileSync(file, "utf8"));
