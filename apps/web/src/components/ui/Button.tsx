@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ComponentProps } from "react";
 import { Icon, type IconName } from "./Icon";
 
-type Variant = "primary" | "secondary" | "quiet" | "signal" | "danger" | "light";
+type Variant = "primary" | "secondary" | "ghost" | "quiet" | "signal" | "danger" | "light";
 type Size = "sm" | "md" | "lg";
 
 /** One primary per screen: solid Teal, white text (5.66:1). Secondary is outlined in Teal. No gradients on buttons. */
@@ -15,6 +15,8 @@ const variants: Record<Variant, string> = {
   light: "bg-on-dark text-abyss hover:bg-white rounded-[14px]",
   quiet: "text-teal underline decoration-teal/30 underline-offset-4 hover:decoration-teal [.on-abyss_&]:text-aqua [.on-abyss_&]:decoration-aqua/40",
   danger: "border border-bad-mark text-bad hover:bg-bad-wash rounded-[14px]",
+  // Below secondary: a hairline in Ink, for side routes next to a primary (works on Paper and Mint).
+  ghost: "border border-rule-strong text-ink-2 hover:border-ink/35 hover:bg-paper-raised hover:text-ink rounded-[14px]",
 };
 const sizes: Record<Size, string> = {
   sm: "h-9 px-3.5 text-sm rounded-[12px]",

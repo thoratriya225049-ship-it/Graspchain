@@ -141,6 +141,35 @@ export function ResultView({
   const certified = countsTowardProgress(integrity?.outcome);
   const f = (r.feedback?.feedback ?? partial ?? null) as Partial<Feedback> | null;
 
+  // The student's next moves: retry first (the one primary on this screen), then side routes.
+  const recommended = recommendation && recommendation.articleId !== r.attempt.articleId ? recommendation : null;
+  const nextMoves =
+    isOwner && (r.status === "done" || r.researchHidden) ? (
+      <>
+        <ButtonLink href={`/start/${r.attempt.articleId}`} icon="replay" className="w-full sm:w-auto">
+          Retry this article
+        </ButtonLink>
+        <ButtonLink href="/progress" variant="ghost" className="w-full sm:w-auto">
+          Your progress
+        </ButtonLink>
+        {recommended ? (
+          // Its own row (basis-full) so a long title never pushes the two buttons apart.
+          <div className="mt-2.5 min-w-0 basis-full border-t border-teal/15 pt-3">
+            <Link
+              href={`/start/${recommended.articleId}`}
+              className="group -mx-3 flex items-center justify-between gap-4 rounded-[12px] px-3 py-2.5 transition-colors duration-200 hover:bg-paper-raised/70"
+            >
+              <span className="min-w-0">
+                <span className="eyebrow block">Up next</span>
+                <span className="mt-1 block truncate font-serif text-[1.0625rem] text-ink">{recommended.title}</span>
+              </span>
+              <Icon name="arrow" size={18} className="shrink-0 text-teal transition-transform duration-200 group-hover:translate-x-0.5" />
+            </Link>
+          </div>
+        ) : null}
+      </>
+    ) : null;
+
   // Understood / partial / missed, weighted by each key idea's importance.
   const split = useMemo(() => {
     const w = { understood: 0, partial: 0, missed: 0 };
@@ -300,24 +329,28 @@ export function ResultView({
               keyPoints={kps}
               evidence={s.evidence}
               fallbackSummary={BAND_MEANING[s.band]}
-              retryHref={isOwner && r.status === "done" ? `/start/${r.attempt.articleId}` : undefined}
+              actions={nextMoves}
             />
 
-            <div className="mt-12 flex flex-wrap items-center gap-x-6 gap-y-4">
-              {r.xrayReady ? (
-                <ButtonLink href={`/attempts/${id}/xray`} size="lg" iconAfter="arrow">
-                  Open X-Ray
-                </ButtonLink>
-              ) : (
-                <span className="inline-flex h-13 items-center rounded-[16px] bg-paper-sunk px-6 text-sm text-ink-3">
-                  The X-Ray opens when feedback is complete
-                </span>
-              )}
-              {r.record ? (
-                <ButtonLink href={`/attempts/${id}/proof`} variant="secondary" size="lg">
-                  View proof
-                </ButtonLink>
-              ) : null}
+            {/* Retry is the primary move for the student; the evidence views step down beside it. */}
+            <div className={nextMoves ? "mt-12" : "mt-12 flex flex-wrap items-center gap-x-6 gap-y-4"}>
+              {nextMoves ? <p className="eyebrow">Explore the evidence</p> : null}
+              <div className={nextMoves ? "mt-3 flex flex-wrap items-center gap-2.5" : "contents"}>
+                {r.xrayReady ? (
+                  <ButtonLink href={`/attempts/${id}/xray`} variant={nextMoves ? "secondary" : "primary"} size={nextMoves ? "md" : "lg"} iconAfter="arrow">
+                    Open X-Ray
+                  </ButtonLink>
+                ) : (
+                  <span className={`inline-flex items-center bg-paper-sunk text-sm text-ink-3 ${nextMoves ? "h-11 rounded-[14px] px-5" : "h-13 rounded-[16px] px-6"}`}>
+                    The X-Ray opens when feedback is complete
+                  </span>
+                )}
+                {r.record ? (
+                  <ButtonLink href={`/attempts/${id}/proof`} variant={nextMoves ? "ghost" : "secondary"} size={nextMoves ? "md" : "lg"} icon="lock">
+                    View proof
+                  </ButtonLink>
+                ) : null}
+              </div>
             </div>
 
             {/* ── One interaction away ── */}
@@ -381,19 +414,9 @@ export function ResultView({
           </>
         ) : null}
 
-        {isOwner && (r.status === "done" || r.researchHidden) ? (
-          <nav aria-label="Next" className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-3 text-[0.9375rem]">
-            <Link href={`/start/${r.attempt.articleId}`} className="link text-ink">
-              Retry this article
-            </Link>
-            {recommendation && recommendation.articleId !== r.attempt.articleId ? (
-              <Link href={`/start/${recommendation.articleId}`} className="link text-ink">
-                Next: <span className="font-serif">{recommendation.title}</span>
-              </Link>
-            ) : null}
-            <Link href="/progress" className="link text-ink-3">
-              Your progress
-            </Link>
+        {!s && nextMoves ? (
+          <nav aria-label="Next" className="mt-10 flex flex-wrap items-center gap-2.5">
+            {nextMoves}
           </nav>
         ) : null}
       </div>

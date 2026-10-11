@@ -4,7 +4,6 @@ import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ClaimDecision, EvidenceDecision, Feedback, FeedbackRecord, KeyPointDecision } from "@graspchain/shared";
 import { useCalm } from "@/components/fx/hooks";
-import { ButtonLink } from "@/components/ui/Button";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { KP, TONE_MARK, TONE_TEXT, TONE_WASH, type Tone } from "@/components/ui/Status";
 
@@ -31,14 +30,15 @@ export function ComprehensionReport({
   keyPoints,
   evidence,
   fallbackSummary,
-  retryHref,
+  actions,
 }: {
   f: Partial<Feedback> | null;
   record: FeedbackRecord | null;
   keyPoints: KpInfo[];
   evidence: EvidenceDecision | null | undefined;
   fallbackSummary: string;
-  retryHref?: string;
+  /** The student's next moves (retry, next article, progress), shown with the next step. */
+  actions?: React.ReactNode;
 }) {
   const { still } = useCalm();
   const [open, setOpen] = useState<Set<string>>(() => new Set());
@@ -100,6 +100,16 @@ export function ComprehensionReport({
   const nPartly = keyPoints.filter((k) => k.label === "vague").length;
   const toWorkOn = misread.length + missed.length;
   const streaming = !record;
+
+  // The next step and the controls that act on it, together: advice first, then the way to do it.
+  const next =
+    f?.nextStep || actions ? (
+      <div className="mt-8 rounded-[20px] bg-mint px-5 py-5 sm:px-6 sm:py-6">
+        <p className="eyebrow text-teal">{f?.nextStep ? "Next step" : "What next"}</p>
+        {f?.nextStep ? <p className="mt-1.5 max-w-[56ch] text-[0.9375rem] leading-relaxed text-ink">{f.nextStep}</p> : null}
+        {actions ? <div className="mt-5 flex flex-wrap items-center gap-2.5">{actions}</div> : null}
+      </div>
+    ) : null;
 
   return (
     <div className="mt-12">
@@ -322,21 +332,11 @@ export function ComprehensionReport({
                 ))}
               </ol>
             ) : null}
-            {f?.nextStep ? (
-              <div className="mt-8 flex flex-col gap-4 rounded-[18px] bg-mint px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="eyebrow text-teal">Next step</p>
-                  <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink">{f.nextStep}</p>
-                </div>
-                {retryHref ? (
-                  <ButtonLink href={retryHref} variant="secondary" size="sm" iconAfter="arrow" className="shrink-0 self-start sm:self-center">
-                    Retry this article
-                  </ButtonLink>
-                ) : null}
-              </div>
-            ) : null}
+            {next}
           </Group>
-        ) : null}
+        ) : (
+          next
+        )}
       </div>
     </div>
   );
