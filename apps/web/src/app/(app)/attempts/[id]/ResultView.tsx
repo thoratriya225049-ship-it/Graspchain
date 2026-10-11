@@ -231,7 +231,7 @@ export function ResultView({
                 Your result
               </h1>
               <div
-                className="mt-4 overflow-hidden rounded-[32px] px-7 pb-7 pt-8 sm:px-10 sm:pt-10"
+                className="mt-4 overflow-hidden rounded-4xl px-7 pb-7 pt-8 sm:px-10 sm:pt-10"
                 style={{ background: "linear-gradient(160deg, #AEDFF7 0%, #DAF3F2 58%, #EEF8F8 100%)" }}
               >
                 <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
@@ -341,7 +341,7 @@ export function ResultView({
                     Open X-Ray
                   </ButtonLink>
                 ) : (
-                  <span className={`inline-flex items-center bg-paper-sunk text-sm text-ink-3 ${nextMoves ? "h-11 rounded-[14px] px-5" : "h-13 rounded-[16px] px-6"}`}>
+                  <span className={`inline-flex items-center bg-paper-sunk text-sm text-ink-3 ${nextMoves ? "h-11 rounded-md px-5" : "h-13 rounded-[16px] px-6"}`}>
                     The X-Ray opens when feedback is complete
                   </span>
                 )}
