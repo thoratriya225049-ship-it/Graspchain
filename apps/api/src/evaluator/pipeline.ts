@@ -19,6 +19,7 @@ import {
   uncertainKeys,
   validateClaims,
   validateFeedback,
+  verdictSummary,
   type Article,
   type Claim,
   type ClaimSummary,
@@ -362,6 +363,7 @@ export class Evaluator {
     const tl = this.ctx.now();
     // Feedback sees only what was judged: copied passages are not praised as understanding.
     const fctx = { article, answer: judgedAnswer, claims: judged, fused };
+    const verdict = verdictSummary(fctx);
     let feedback: FeedbackRecord | null = null;
     let fallbackReason = "No LLM is configured, so feedback is built from the judge's results.";
     let llmTokens = segTokens + (judge.kind === "evidence" ? inputTokens : 0);
@@ -369,7 +371,13 @@ export class Evaluator {
       for (let attempt = 0; attempt < 2 && !feedback; attempt++) {
         try {
           const r = await withTimeout(cfg.FEEDBACK_TIMEOUT_MS, (signal) =>
-            llm.feedback(fctx, (partial) => !hidden && attempt === 0 && this.emit(attemptId, { type: "feedback", data: { partial } }), signal, attempt),
+            llm.feedback(
+              fctx,
+              // The streamed draft already carries the evidence-based headline, so the LLM's own never flashes up.
+              (partial) => !hidden && attempt === 0 && this.emit(attemptId, { type: "feedback", data: { partial: { ...(partial as object), oneLineSummary: verdict } } }),
+              signal,
+              attempt,
+            ),
           );
           llmTokens += r.tokens;
           const validated = validateFeedback(r.raw, fctx);

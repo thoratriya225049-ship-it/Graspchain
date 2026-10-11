@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { validateClaims } from "../src/claims";
-import { templateFeedback, validateFeedback } from "../src/feedback";
+import { templateFeedback, validateFeedback, verdictSummary } from "../src/feedback";
 import { fuse } from "../src/fusion";
 import { JudgeResponseError, mergeAnswers, uncertainKeys, validateJudgeResult } from "../src/jev";
 import { buildQuestions, buildState, estimateTokens } from "../src/questions";
@@ -76,7 +76,8 @@ describe("feedback validators (PRD §9.2.8)", () => {
     const v = validateFeedback(raw, ctx)!;
     expect(v.feedback.understood).toEqual([{ keyPointId: "kp1", evidence: "Each record is hashed" }]);
     expect(v.feedback.misunderstood.map((m) => m.claimId)).toEqual(["c3"]);
-    expect(v.feedback.missed.map((m) => m.keyPointId)).toEqual(["kp3"]);
+    // kp3 is missing; kp4 is wrong, and a wrong idea is a gap too (never silently dropped).
+    expect(v.feedback.missed.map((m) => m.keyPointId)).toEqual(["kp3", "kp4"]);
     expect(v.feedback.couldBeBetter).toHaveLength(4);
     expect(v.dropped).toBeGreaterThanOrEqual(6);
   });
@@ -90,6 +91,46 @@ describe("feedback validators (PRD §9.2.8)", () => {
     expect(t.misunderstood[0].correctVersion).toMatch(/does not encrypt/);
     for (const u of t.understood) if (u.evidence) expect(answer.includes(u.evidence)).toBe(true);
     expect(t.couldBeBetter.length).toBeGreaterThan(0);
+  });
+});
+
+describe("evidence-first summary", () => {
+  const PRAISE = /good effort|great|well done|excellent|nice work|good job/i;
+  const fusedWith = (spec: Parameters<typeof fakeAnswers>[2]) => fuse({ article, claims, answers: fakeAnswers(article, claims, spec), overlap5: 0.1 });
+
+  it("names what was right, then every gap by kind, without praise", () => {
+    const v = verdictSummary(ctx);
+    expect(v).toMatch(/^You explained “hashing up to a single root” and “any change alters the root” correctly, but part of your answer is incorrect\./);
+    expect(v).toContain("You misunderstood “the root reveals nothing”.");
+    expect(v).toContain("Your answer does not explain “short inclusion proofs”.");
+    expect(v).not.toMatch(PRAISE);
+  });
+  it("replaces the LLM's headline, so it cannot over-praise", () => {
+    const raw = { oneLineSummary: "Good effort — great answer!", understood: [], missed: [], misunderstood: [], couldBeBetter: [], nextStep: "Read again." };
+    expect(validateFeedback(raw, ctx)!.feedback.oneLineSummary).toBe(verdictSummary(ctx));
+    expect(templateFeedback(ctx).oneLineSummary).toBe(verdictSummary(ctx));
+  });
+  it("says 'main idea, but concepts are missing' when only the main idea is there", () => {
+    const f = fusedWith({ kp: { kp1: "absent", kp2: "absent", kp3: "absent", kp4: "absent" }, mainPurpose: 0.9 });
+    const v = verdictSummary({ article, fused: f });
+    expect(v).toMatch(/^You identified the main idea, but several important concepts are missing\. Your answer does not explain .+ or “the root reveals nothing”\. Add these concepts/);
+  });
+  it("calls partial understanding partial", () => {
+    const f = fusedWith({ kp: { kp2: "vague" } });
+    expect(verdictSummary({ article, fused: f })).toContain("only partly explain “any change alters the root”");
+  });
+  it("does not claim understanding when nothing is supported", () => {
+    const f = fusedWith({ kp: { kp1: "absent", kp2: "absent", kp3: "absent", kp4: "absent" }, mainPurpose: 0.1 });
+    expect(verdictSummary({ article, fused: f })).toMatch(/^Your answer does not yet explain any of the key ideas\./);
+  });
+  it("only praises a complete, accurate answer", () => {
+    const f = fusedWith({});
+    expect(verdictSummary({ article, fused: f })).toMatch(/^You explained all 4 key ideas correctly/);
+  });
+  it("lists a wrong key idea as a gap, never dropping it", () => {
+    const t = templateFeedback(ctx);
+    const kp4 = t.missed.find((m) => m.keyPointId === "kp4");
+    expect(kp4?.whatToAdd).toMatch(/^Your answer gets this idea wrong\. The source says:/);
   });
 });
 

@@ -292,7 +292,7 @@ export function ComprehensionReport({
                     id={id}
                     tone={spec.tone}
                     icon={spec.icon}
-                    status={k?.label === "vague" ? spec.word : undefined}
+                    status={k?.label === "vague" || k?.label === "incorrect" ? spec.word : undefined}
                     title={concept(m.keyPointId)}
                     weight={k?.weight}
                     flash={flash === id}
