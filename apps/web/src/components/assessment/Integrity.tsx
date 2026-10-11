@@ -82,7 +82,7 @@ export function IntegrityPanel({
     <section
       aria-labelledby={embedded ? undefined : "conditions"}
       aria-label={embedded ? "Assessment conditions" : undefined}
-      className={embedded ? "" : "mt-16 border-t border-rule pt-8"}
+      className={`@container ${embedded ? "" : "mt-16 border-t border-rule pt-8"}`}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-4">
         {embedded ? null : (
@@ -92,7 +92,7 @@ export function IntegrityPanel({
         )}
         <p className="text-xs text-ink-3">Judged separately from comprehension · never deducted from the score</p>
       </div>
-      <div className="mt-5 grid gap-10 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+      <div className="mt-5 grid gap-10 @xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
         <div>
           <p className={`font-serif text-2xl ${TONE_TEXT[STATUS_TONE[integrity.status]]}`}>{STATUS_WORD[integrity.status]}</p>
           <p className="mt-1 text-sm text-ink-2">
@@ -129,7 +129,7 @@ export function IntegrityPanel({
         </div>
       </div>
 
-      <div className="mt-6 grid gap-4 text-sm md:grid-cols-3">
+      <div className="mt-6 grid gap-4 text-sm @xl:grid-cols-3">
         <details className="border-t border-rule pt-3">
           <summary className="cursor-pointer text-ink-2">How integrity is rated</summary>
           <p className="mt-2 text-xs text-ink-3">
@@ -207,7 +207,7 @@ export function EvidenceTrail({ evidence, embedded = false }: { evidence: Eviden
     <section
       aria-labelledby={embedded ? undefined : "evidence"}
       aria-label={embedded ? "Evidence trail" : undefined}
-      className={embedded ? "" : "mt-16 border-t border-rule pt-8"}
+      className={`@container ${embedded ? "" : "mt-16 border-t border-rule pt-8"}`}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-4">
         {embedded ? null : (
@@ -221,7 +221,7 @@ export function EvidenceTrail({ evidence, embedded = false }: { evidence: Eviden
       </div>
       <ul className="mt-5 divide-y divide-rule rounded-[14px] bg-paper-raised px-4 ring-1 ring-rule">
         {evidence.keyPoints.map((k) => (
-          <li key={k.id} className="grid gap-2 py-3 text-sm md:grid-cols-[12rem_minmax(0,1fr)]">
+          <li key={k.id} className="grid gap-2 py-3 text-sm @xl:grid-cols-[12rem_minmax(0,1fr)]">
             <span>
               <span className={`font-medium ${TONE_TEXT[CLASS_TONE[k.classification]]}`}>{CLASS_WORD[k.classification]}</span>
               <span className="block text-ink-3">{k.concept}</span>

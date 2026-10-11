@@ -7,7 +7,7 @@ import { BANDS } from "@graspchain/shared";
 export function ScoreScale({ score, previous }: { score: number; previous?: number | null }) {
   const x = (v: number) => `${((v - 1) / 9) * 100}%`;
   return (
-    <div className="select-none" aria-hidden="true">
+    <div className="@container select-none" aria-hidden="true">
       <div className="relative h-9">
         <div className="absolute inset-x-0 top-4 h-px" style={{ background: "var(--thread-x)" }} />
         {Array.from({ length: 10 }, (_, i) => i + 1).map((t) => (
@@ -29,16 +29,16 @@ export function ScoreScale({ score, previous }: { score: number; previous?: numb
         {BANDS.filter((b) => b.band !== "Expert").map((b) => (
           <div
             key={b.band}
-            className="absolute hidden border-l border-rule-strong pl-1.5 text-ink-3 sm:block"
+            className="absolute hidden border-l border-rule-strong pl-1.5 text-ink-3 @lg:block"
             style={{ left: x(b.from), width: `calc(${x(b.to + 0.1)} - ${x(b.from)})` }}
           >
             <span className="uppercase tracking-[0.1em]">{b.band}</span>
           </div>
         ))}
         <div className="absolute right-0 text-right uppercase tracking-[0.1em] text-ink-3">10</div>
-        {/* Phones: numbers instead of band names (the band is printed beside the score). */}
-        <div className="absolute left-0 text-ink-3 sm:hidden">1</div>
-        <div className="absolute -translate-x-1/2 text-ink-3 sm:hidden" style={{ left: x(5) }}>
+        {/* Narrow (phones, side panels): numbers instead of band names (the band is printed beside the score). */}
+        <div className="absolute left-0 text-ink-3 @lg:hidden">1</div>
+        <div className="absolute -translate-x-1/2 text-ink-3 @lg:hidden" style={{ left: x(5) }}>
           5
         </div>
       </div>

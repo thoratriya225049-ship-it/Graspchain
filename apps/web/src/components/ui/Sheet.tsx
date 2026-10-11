@@ -82,13 +82,14 @@ export function Reveal({
   defaultOpen?: boolean;
 }) {
   return (
-    <details className="group border-t border-rule" open={defaultOpen}>
+    // Sized by its own width: in a narrow column (a side panel, a phone) the meta drops under the title.
+    <details className="group @container border-t border-rule" open={defaultOpen}>
       <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-[0.9375rem] font-medium text-ink [&::-webkit-details-marker]:hidden">
-        <span>{summary}</span>
-        <span className="flex items-center gap-3 text-ink-3">
-          {meta ? <span className="text-xs font-normal">{meta}</span> : null}
-          <Icon name="down" size={16} className="transition-transform duration-300 group-open:rotate-180" />
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5 @md:flex-row @md:items-center @md:justify-between @md:gap-4">
+          <span>{summary}</span>
+          {meta ? <span className="text-xs font-normal text-ink-3">{meta}</span> : null}
         </span>
+        <Icon name="down" size={16} className="shrink-0 text-ink-3 transition-transform duration-300 group-open:rotate-180" />
       </summary>
       <div className="pb-6">{children}</div>
     </details>

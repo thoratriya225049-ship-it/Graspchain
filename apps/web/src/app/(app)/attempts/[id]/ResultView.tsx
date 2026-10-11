@@ -186,7 +186,7 @@ export function ResultView({
   return (
     <>
       <JourneyThread stage="decision" />
-      <div className="frame-narrow pt-8 md:pt-12">
+      <div className={`mx-auto w-full max-w-[44rem] px-[var(--gutter)] pt-8 md:pt-12 ${s ? "lg:max-w-[66rem]" : ""}`}>
         <JourneySteps stage="decision" className="mb-8" />
         <header className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
@@ -204,221 +204,235 @@ export function ResultView({
           ) : null}
         </header>
 
-        {r.status === "delayed" || r.status === "failed" ? (
-          <div className="mt-8">
-            <Notice tone={r.status === "failed" ? "bad" : "warn"} title={r.status === "failed" ? "Evaluation failed" : "Evaluation delayed"}>
-              {r.error?.message ?? "Your answer is saved."} {r.status === "delayed" ? "This page checks again by itself." : ""}
-            </Notice>
-          </div>
-        ) : null}
-
-        {r.researchHidden ? (
-          <section className="panel mt-10 px-8 py-10">
-            <p className="display text-3xl">Thanks — your answer is recorded.</p>
-            <p className="mt-3 max-w-xl text-ink-2">
-              Research mode is on, so scores and feedback are hidden for now. Your receipt is still created and committed.
-            </p>
-          </section>
-        ) : null}
-
-        {evaluating ? <Progress stage={stage} mode={mode} /> : null}
-
-        {s ? (
-          <>
-            {/* ── Your result ── */}
-            <section aria-labelledby="score-h" className="mt-8">
-              <h1 id="score-h" className="eyebrow">
-                Your result
-              </h1>
-              <div
-                className="mt-4 overflow-hidden rounded-4xl px-7 pb-7 pt-8 sm:px-10 sm:pt-10"
-                style={{ background: "linear-gradient(160deg, #AEDFF7 0%, #DAF3F2 58%, #EEF8F8 100%)" }}
-              >
-                <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
-                  <RollingNumber
-                    value={s.finalScore}
-                    label={`Score ${s.finalScore.toFixed(1)} out of 10`}
-                    className={`display text-[clamp(6.5rem,24vw,10rem)] leading-[0.82] tracking-[-0.055em] ${certified ? "text-abyss" : "text-abyss/55"}`}
-                  />
-                  <div className="pb-3">
-                    <p className="font-serif text-2xl text-abyss">{s.band}</p>
-                    <p className="text-sm text-abyss/80">out of 10{certified ? "" : " · not certified"}</p>
-                  </div>
-                </div>
-                {kps.length ? (
-                  <div className="mt-8">
-                    <div className="flex h-2.5 overflow-hidden rounded-full bg-white/60" aria-hidden>
-                      <div className="bg-ok-mark" style={{ width: `${(split.w.understood / split.total) * 100}%` }} />
-                      <div className="bg-warn-mark" style={{ width: `${(split.w.partial / split.total) * 100}%` }} />
-                      <div className="bg-bad-mark" style={{ width: `${(split.w.missed / split.total) * 100}%` }} />
-                    </div>
-                    <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-abyss">
-                      <li className="flex items-center gap-1.5">
-                        <Icon name="check" size={14} className="text-ok" /> {split.n.understood} understood
-                      </li>
-                      <li className="flex items-center gap-1.5">
-                        <Icon name="vague" size={14} className="text-warn" /> {split.n.partial} partly
-                      </li>
-                      <li className="flex items-center gap-1.5">
-                        <Icon name="missed" size={14} className="text-bad" /> {split.n.missed} missed or misread
-                      </li>
-                    </ul>
-                  </div>
-                ) : null}
+        <div className={s ? "lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-x-12" : undefined}>
+          <div className="min-w-0">
+            {r.status === "delayed" || r.status === "failed" ? (
+              <div className="mt-8">
+                <Notice tone={r.status === "failed" ? "bad" : "warn"} title={r.status === "failed" ? "Evaluation failed" : "Evaluation delayed"}>
+                  {r.error?.message ?? "Your answer is saved."} {r.status === "delayed" ? "This page checks again by itself." : ""}
+                </Notice>
               </div>
+            ) : null}
 
-              {!certified && integrity ? (
-                <div className="mt-4">
-                  <Notice tone={integrity.outcome === "NOT_CERTIFIED" ? "bad" : "warn"} title={`Assessment conditions: ${STATUS_WORD[integrity.status]}`}>
-                    {integrity.outcome === "NOT_CERTIFIED" ? "This result is not certified." : "A teacher reviews this result before it counts."} The
-                    comprehension score itself is unchanged.
-                    {integrity.review ? ` A teacher ${integrity.review.decision === "CLEARED" ? "cleared" : "upheld"} it: “${integrity.review.reason}”` : ""}
-                  </Notice>
-                </div>
-              ) : null}
-              {r.review ? (
-                <div className="mt-4">
-                  <Notice tone="signal" title={`Corrected by a teacher: ${r.review.previousScore.toFixed(1)} → ${r.review.newScore.toFixed(1)}`}>
-                    “{r.review.reason}” The original record still verifies; the correction is a new, linked record.
-                  </Notice>
-                </div>
-              ) : null}
-              {s.flags.injectionSuspected || s.flags.gibberishSuspected ? (
-                <div className="mt-4">
-                  <Notice tone="bad" title={s.flags.injectionSuspected ? "Contains instructions to the grader" : "Looks like keyword stuffing"}>
-                    {s.flags.injectionSuspected
-                      ? "Text addressed to the grader earns nothing and sends the answer to a teacher."
-                      : "The answer reads like a list of terms rather than an explanation."}
-                  </Notice>
-                </div>
-              ) : null}
-              {s.lowConfidence ? (
-                <div className="mt-4">
-                  <Notice tone="warn" title="A teacher will look at this one">
-                    Part of the judgement stayed uncertain, so it is in the review queue.
-                  </Notice>
-                </div>
-              ) : null}
-              {r.delta ? (
-                <p className="mt-4 text-sm text-ink-3">
-                  <span className={`num mono font-medium ${r.delta.finalScore >= 0 ? "text-ok" : "text-bad"}`}>
-                    {r.delta.finalScore >= 0 ? "+" : "−"}
-                    {Math.abs(r.delta.finalScore).toFixed(1)}
-                  </span>{" "}
-                  since your previous attempt at this article
+            {r.researchHidden ? (
+              <section className="panel mt-10 px-8 py-10">
+                <p className="display text-3xl">Thanks — your answer is recorded.</p>
+                <p className="mt-3 max-w-xl text-ink-2">
+                  Research mode is on, so scores and feedback are hidden for now. Your receipt is still created and committed.
                 </p>
-              ) : null}
+              </section>
+            ) : null}
 
-              <ChainFlowMini
-                className="mt-6"
-                current="decision"
-                items={[
-                  { key: "source", value: <span className="mono">{r.attempt.articleId}</span> },
-                  { key: "claim", value: s.claimSummary.count },
-                  { key: "evidence", value: `${s.claimSummary.supported} supported` },
-                  { key: "decision", value: s.band },
-                  { key: "proof", value: r.record ? (CHAIN[r.record.chainStatus] ?? CHAIN.queued).word : "…" },
-                ]}
-              />
-            </section>
+            {evaluating ? <Progress stage={stage} mode={mode} /> : null}
 
-            {/* ── What it means ── */}
-            <ComprehensionReport
-              f={f}
-              record={r.feedback ?? null}
-              keyPoints={kps}
-              evidence={s.evidence}
-              fallbackSummary={BAND_MEANING[s.band]}
-              actions={nextMoves}
-            />
-
-            {/* Retry is the primary move for the student; the evidence views step down beside it. */}
-            <div className={nextMoves ? "mt-12" : "mt-12 flex flex-wrap items-center gap-x-6 gap-y-4"}>
-              {nextMoves ? <p className="eyebrow">Explore the evidence</p> : null}
-              <div className={nextMoves ? "mt-3 flex flex-wrap items-center gap-2.5" : "contents"}>
-                {r.xrayReady ? (
-                  <ButtonLink href={`/attempts/${id}/xray`} variant={nextMoves ? "secondary" : "primary"} size={nextMoves ? "md" : "lg"} iconAfter="arrow">
-                    Open X-Ray
-                  </ButtonLink>
-                ) : (
-                  <span className={`inline-flex items-center bg-paper-sunk text-sm text-ink-3 ${nextMoves ? "h-11 rounded-md px-5" : "h-13 rounded-[16px] px-6"}`}>
-                    The X-Ray opens when feedback is complete
-                  </span>
-                )}
-                {r.record ? (
-                  <ButtonLink href={`/attempts/${id}/proof`} variant={nextMoves ? "ghost" : "secondary"} size={nextMoves ? "md" : "lg"} icon="lock">
-                    View proof
-                  </ButtonLink>
-                ) : null}
-              </div>
-            </div>
-
-            {/* ── One interaction away ── */}
-            <div className="mt-16">
-              <Reveal summary="How this score was made" meta="formula, dimensions, fairness">
-                <ScoreScale score={s.finalScore} previous={r.delta ? s.finalScore - r.delta.finalScore : null} />
-                <div className="mt-8 grid gap-10 md:grid-cols-2">
-                  <ScoreBreakdown score={s} />
-                  <div className="space-y-5">
-                    {STUDENT_DIMS.map((d) => (
-                      <Meter
-                        key={d}
-                        label={DIMENSION_COPY[d].label}
-                        value={s.dimensions[d]}
-                        hint={DIMENSION_COPY[d].definition}
-                        tone={recommendation?.weakest === d ? "signal" : "ink"}
+            {s ? (
+              <>
+                {/* ── Your result ── */}
+                <section aria-labelledby="score-h" className="mt-8">
+                  <h1 id="score-h" className="eyebrow">
+                    Your result
+                  </h1>
+                  <div
+                    className="mt-4 overflow-hidden rounded-4xl px-7 pb-7 pt-8 sm:px-10 sm:pt-10"
+                    style={{ background: "linear-gradient(160deg, #AEDFF7 0%, #DAF3F2 58%, #EEF8F8 100%)" }}
+                  >
+                    <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
+                      <RollingNumber
+                        value={s.finalScore}
+                        label={`Score ${s.finalScore.toFixed(1)} out of 10`}
+                        className={`display text-[clamp(6.5rem,24vw,10rem)] leading-[0.82] tracking-[-0.055em] ${certified ? "text-abyss" : "text-abyss/55"}`}
                       />
-                    ))}
+                      <div className="pb-3">
+                        <p className="font-serif text-2xl text-abyss">{s.band}</p>
+                        <p className="text-sm text-abyss/80">out of 10{certified ? "" : " · not certified"}</p>
+                      </div>
+                    </div>
+                    {kps.length ? (
+                      <div className="mt-8">
+                        <div className="flex h-2.5 overflow-hidden rounded-full bg-white/60" aria-hidden>
+                          <div className="bg-ok-mark" style={{ width: `${(split.w.understood / split.total) * 100}%` }} />
+                          <div className="bg-warn-mark" style={{ width: `${(split.w.partial / split.total) * 100}%` }} />
+                          <div className="bg-bad-mark" style={{ width: `${(split.w.missed / split.total) * 100}%` }} />
+                        </div>
+                        <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-abyss">
+                          <li className="flex items-center gap-1.5">
+                            <Icon name="check" size={14} className="text-ok" /> {split.n.understood} understood
+                          </li>
+                          <li className="flex items-center gap-1.5">
+                            <Icon name="vague" size={14} className="text-warn" /> {split.n.partial} partly
+                          </li>
+                          <li className="flex items-center gap-1.5">
+                            <Icon name="missed" size={14} className="text-bad" /> {split.n.missed} missed or misread
+                          </li>
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {!certified && integrity ? (
+                    <div className="mt-4">
+                      <Notice tone={integrity.outcome === "NOT_CERTIFIED" ? "bad" : "warn"} title={`Assessment conditions: ${STATUS_WORD[integrity.status]}`}>
+                        {integrity.outcome === "NOT_CERTIFIED" ? "This result is not certified." : "A teacher reviews this result before it counts."} The
+                        comprehension score itself is unchanged.
+                        {integrity.review
+                          ? ` A teacher ${integrity.review.decision === "CLEARED" ? "cleared" : "upheld"} it: “${integrity.review.reason}”`
+                          : ""}
+                      </Notice>
+                    </div>
+                  ) : null}
+                  {r.review ? (
+                    <div className="mt-4">
+                      <Notice tone="signal" title={`Corrected by a teacher: ${r.review.previousScore.toFixed(1)} → ${r.review.newScore.toFixed(1)}`}>
+                        “{r.review.reason}” The original record still verifies; the correction is a new, linked record.
+                      </Notice>
+                    </div>
+                  ) : null}
+                  {s.flags.injectionSuspected || s.flags.gibberishSuspected ? (
+                    <div className="mt-4">
+                      <Notice tone="bad" title={s.flags.injectionSuspected ? "Contains instructions to the grader" : "Looks like keyword stuffing"}>
+                        {s.flags.injectionSuspected
+                          ? "Text addressed to the grader earns nothing and sends the answer to a teacher."
+                          : "The answer reads like a list of terms rather than an explanation."}
+                      </Notice>
+                    </div>
+                  ) : null}
+                  {s.lowConfidence ? (
+                    <div className="mt-4">
+                      <Notice tone="warn" title="A teacher will look at this one">
+                        Part of the judgement stayed uncertain, so it is in the review queue.
+                      </Notice>
+                    </div>
+                  ) : null}
+                  {r.delta ? (
+                    <p className="mt-4 text-sm text-ink-3">
+                      <span className={`num mono font-medium ${r.delta.finalScore >= 0 ? "text-ok" : "text-bad"}`}>
+                        {r.delta.finalScore >= 0 ? "+" : "−"}
+                        {Math.abs(r.delta.finalScore).toFixed(1)}
+                      </span>{" "}
+                      since your previous attempt at this article
+                    </p>
+                  ) : null}
+
+                  <ChainFlowMini
+                    className="mt-6"
+                    current="decision"
+                    items={[
+                      { key: "source", value: <span className="mono">{r.attempt.articleId}</span> },
+                      { key: "claim", value: s.claimSummary.count },
+                      { key: "evidence", value: `${s.claimSummary.supported} supported` },
+                      { key: "decision", value: s.band },
+                      { key: "proof", value: r.record ? (CHAIN[r.record.chainStatus] ?? CHAIN.queued).word : "…" },
+                    ]}
+                  />
+                </section>
+
+                {/* ── What it means ── */}
+                <ComprehensionReport
+                  f={f}
+                  record={r.feedback ?? null}
+                  keyPoints={kps}
+                  evidence={s.evidence}
+                  fallbackSummary={BAND_MEANING[s.band]}
+                  actions={nextMoves}
+                />
+
+                {/* Retry is the primary move for the student; the evidence views step down beside it. */}
+                <div className={nextMoves ? "mt-12" : "mt-12 flex flex-wrap items-center gap-x-6 gap-y-4"}>
+                  {nextMoves ? <p className="eyebrow">Explore the evidence</p> : null}
+                  <div className={nextMoves ? "mt-3 flex flex-wrap items-center gap-2.5" : "contents"}>
+                    {r.xrayReady ? (
+                      <ButtonLink href={`/attempts/${id}/xray`} variant={nextMoves ? "secondary" : "primary"} size={nextMoves ? "md" : "lg"} iconAfter="arrow">
+                        Open X-Ray
+                      </ButtonLink>
+                    ) : (
+                      <span
+                        className={`inline-flex items-center bg-paper-sunk text-sm text-ink-3 ${nextMoves ? "h-11 rounded-md px-5" : "h-13 rounded-[16px] px-6"}`}
+                      >
+                        The X-Ray opens when feedback is complete
+                      </span>
+                    )}
+                    {r.record ? (
+                      <ButtonLink href={`/attempts/${id}/proof`} variant={nextMoves ? "ghost" : "secondary"} size={nextMoves ? "md" : "lg"} icon="lock">
+                        View proof
+                      </ButtonLink>
+                    ) : null}
                   </div>
                 </div>
-                <div className="mt-6 flex flex-wrap gap-2">
-                  <IntegrityTag integrity={integrity} />
-                </div>
-                <dl className="mt-8 grid grid-cols-2 gap-x-6 gap-y-4 text-xs sm:grid-cols-3">
-                  <Fact
-                    k="Judge"
-                    v={<span className="mono">{s.judge.model}</span>}
-                    sub={
-                      s.judge.kind === "local"
-                        ? "Local demo stand-in, not Jev"
-                        : s.judge.kind === "evidence"
-                          ? "The LLM extracts evidence; published rules decide"
-                          : undefined
-                    }
-                  />
-                  <Fact k="Claims" v={s.segmentation === "llm" ? "Split by the LLM, verified as your exact words" : "Split by sentence (no LLM)"} />
-                  <Fact k="Fair entry" v={r.fairness.admissionMode === "fair" ? "Shuffled window" : "Arrival order"} sub={r.fairness.windowId ?? undefined} />
-                  <Fact
-                    k="Fair clock"
-                    v={`${r.fairness.readSecondsGranted} s granted`}
-                    sub={r.fairness.clockMode === "fair" ? `+${(r.fairness.latencyCompMs / 1000).toFixed(1)} s delivery delay added` : "server clock only"}
-                  />
-                  <Fact
-                    k="Time to score"
-                    v={<span className="num mono">{s.tScoreMs < 1000 ? `${s.tScoreMs} ms` : `${(s.tScoreMs / 1000).toFixed(2)} s`}</span>}
-                  />
-                </dl>
-              </Reveal>
-              {integrity ? (
-                <Reveal summary="Assessment conditions" meta={STATUS_WORD[integrity.status]}>
-                  <IntegrityPanel integrity={integrity} events={r.integrityEvents ?? []} embedded />
-                </Reveal>
-              ) : null}
-              {s.evidence ? (
-                <Reveal summary="Evidence trail" meta={`${s.evidence.claims.length} claims`}>
-                  <EvidenceTrail evidence={s.evidence} embedded />
-                </Reveal>
-              ) : null}
-              <div className="border-t border-rule" />
-            </div>
-          </>
-        ) : null}
+              </>
+            ) : null}
 
-        {!s && nextMoves ? (
-          <nav aria-label="Next" className="mt-10 flex flex-wrap items-center gap-2.5">
-            {nextMoves}
-          </nav>
-        ) : null}
+            {!s && nextMoves ? (
+              <nav aria-label="Next" className="mt-10 flex flex-wrap items-center gap-2.5">
+                {nextMoves}
+              </nav>
+            ) : null}
+          </div>
+
+          {s ? (
+            /* ── Beside the result: how it was judged (one interaction away) ── */
+            <aside aria-labelledby="judged-h" className="mt-16 lg:mt-8">
+              <h2 id="judged-h" className="eyebrow">
+                How it was judged
+              </h2>
+              <div className="@container mt-4 rounded-[24px] border border-rule bg-paper-raised/70 px-5 [&>details:first-child]:border-t-0">
+                <Reveal summary="How this score was made" meta="formula, dimensions, fairness">
+                  <ScoreScale score={s.finalScore} previous={r.delta ? s.finalScore - r.delta.finalScore : null} />
+                  <div className="mt-8 grid gap-10 @xl:grid-cols-2">
+                    <ScoreBreakdown score={s} />
+                    <div className="space-y-5">
+                      {STUDENT_DIMS.map((d) => (
+                        <Meter
+                          key={d}
+                          label={DIMENSION_COPY[d].label}
+                          value={s.dimensions[d]}
+                          hint={DIMENSION_COPY[d].definition}
+                          tone={recommendation?.weakest === d ? "signal" : "ink"}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="mt-6 flex flex-wrap gap-2">
+                    <IntegrityTag integrity={integrity} />
+                  </div>
+                  <dl className="mt-8 grid grid-cols-2 gap-x-6 gap-y-4 text-xs @lg:grid-cols-3">
+                    <Fact
+                      k="Judge"
+                      v={<span className="mono">{s.judge.model}</span>}
+                      sub={
+                        s.judge.kind === "local"
+                          ? "Local demo stand-in, not Jev"
+                          : s.judge.kind === "evidence"
+                            ? "The LLM extracts evidence; published rules decide"
+                            : undefined
+                      }
+                    />
+                    <Fact k="Claims" v={s.segmentation === "llm" ? "Split by the LLM, verified as your exact words" : "Split by sentence (no LLM)"} />
+                    <Fact k="Fair entry" v={r.fairness.admissionMode === "fair" ? "Shuffled window" : "Arrival order"} sub={r.fairness.windowId ?? undefined} />
+                    <Fact
+                      k="Fair clock"
+                      v={`${r.fairness.readSecondsGranted} s granted`}
+                      sub={r.fairness.clockMode === "fair" ? `+${(r.fairness.latencyCompMs / 1000).toFixed(1)} s delivery delay added` : "server clock only"}
+                    />
+                    <Fact
+                      k="Time to score"
+                      v={<span className="num mono">{s.tScoreMs < 1000 ? `${s.tScoreMs} ms` : `${(s.tScoreMs / 1000).toFixed(2)} s`}</span>}
+                    />
+                  </dl>
+                </Reveal>
+                {integrity ? (
+                  <Reveal summary="Assessment conditions" meta={STATUS_WORD[integrity.status]}>
+                    <IntegrityPanel integrity={integrity} events={r.integrityEvents ?? []} embedded />
+                  </Reveal>
+                ) : null}
+                {s.evidence ? (
+                  <Reveal summary="Evidence trail" meta={`${s.evidence.claims.length} claims`}>
+                    <EvidenceTrail evidence={s.evidence} embedded />
+                  </Reveal>
+                ) : null}
+              </div>
+            </aside>
+          ) : null}
+        </div>
       </div>
     </>
   );
@@ -426,10 +440,10 @@ export function ResultView({
 
 function Fact({ k, v, sub }: { k: string; v: React.ReactNode; sub?: string }) {
   return (
-    <div>
+    <div className="min-w-0">
       <dt className="eyebrow">{k}</dt>
-      <dd className="mt-1 text-sm text-ink">{v}</dd>
-      {sub ? <dd className="mt-0.5 text-ink-3">{sub}</dd> : null}
+      <dd className="mt-1 text-sm text-ink wrap-anywhere">{v}</dd>
+      {sub ? <dd className="mt-0.5 text-ink-3 wrap-anywhere">{sub}</dd> : null}
     </div>
   );
 }
